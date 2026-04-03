@@ -18,5 +18,21 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/subscription",
     },
+    {
+      resolve: "@medusajs/medusa/payment",
+      options: {
+        providers: [
+          {
+            resolve: "./src/modules/openpay-payment",
+            id: "openpay",
+            options: {
+              merchantId: process.env.OPENPAY_MERCHANT_ID ?? "",
+              privateKey: process.env.OPENPAY_PRIVATE_KEY ?? "",
+              sandbox: process.env.OPENPAY_SANDBOX !== "false",
+            },
+          },
+        ],
+      },
+    },
   ],
 })
