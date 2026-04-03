@@ -11,7 +11,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const body = req.body as Record<string, unknown>
-  const cardId = body.card_id as string | undefined
+  // Accept both "card_id" and "openpay_token_id" — the frontend sends openpay_token_id
+  const cardId = (body.card_id ?? body.openpay_token_id) as string | undefined
 
   if (!cardId) {
     res.status(400).json({ message: "card_id is required" })
