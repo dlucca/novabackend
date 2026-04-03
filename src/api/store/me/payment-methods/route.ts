@@ -53,6 +53,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     res.json({ payment_methods })
   } catch (err) {
+    const logger = req.scope.resolve("logger")
+    logger.error(
+      `[store/me/payment-methods] Failed to retrieve cards for Openpay customer ${openpayCustomerId}: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    )
     res.status(502).json({ message: "Failed to retrieve payment methods from Openpay" })
   }
 }
