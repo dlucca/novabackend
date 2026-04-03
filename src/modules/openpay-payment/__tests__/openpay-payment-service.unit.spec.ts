@@ -102,6 +102,22 @@ describe("OpenpayPaymentService", () => {
     })
   })
 
+  describe("cancelPayment", () => {
+    it("returns error when refundCharge fails", async () => {
+      const { svc, client } = makeService()
+      client.refundCharge = jest.fn().mockRejectedValue(new Error("Charge already refunded"))
+      const result = await svc.cancelPayment({ openpay_charge_id: "ch_1" })
+      expect(result).toEqual(expect.objectContaining({ error: "Charge already refunded" }))
+    })
+
+    it("returns data when chargeId is absent", async () => {
+      const { svc } = makeService()
+      const data = { some: "data" }
+      const result = await svc.cancelPayment(data)
+      expect(result).toEqual({ data })
+    })
+  })
+
   describe("refundPayment", () => {
     it("calls refundCharge converting centavos to pesos", async () => {
       const { svc, client } = makeService()
@@ -110,6 +126,33 @@ describe("OpenpayPaymentService", () => {
       await svc.refundPayment({ openpay_charge_id: "ch_1" }, 31920)
 
       expect(client.refundCharge).toHaveBeenCalledWith("ch_1", { description: "Novapatch refund", amount: 319.20 })
+    })
+
+    it("returns error when refundCharge fails", async () => {
+      const { svc, client } = makeService()
+      client.refundCharge = jest.fn().mockRejectedValue(new Error("Refund not allowed"))
+      const result = await svc.refundPayment({ openpay_charge_id: "ch_1" }, 31920)
+      expect(result).toEqual(expect.objectContaining({ error: "Refund not allowed" }))
+    })
+
+    it("returns data unchanged when chargeId is absent", async () => {
+      const { svc } = makeService()
+      const data = { some: "data" }
+      const result = await svc.refundPayment(data, 31920)
+      expect(result).toEqual({ data })
+    })
+  })
+
+  describe("authorizePayment amount guard", () => {
+    it("returns error when amount is 0", async () => {
+      const { svc } = makeService()
+      const context = {
+        amount: 0,
+        currency_code: "mxn",
+        customer: { id: "c1", email: "a@b.com", first_name: "A", last_name: "B", metadata: {} },
+      }
+      const result = await svc.authorizePayment({ status: "pending", openpay_token_id: "tok_abc" }, context as any)
+      expect(result).toEqual(expect.objectContaining({ error: expect.stringContaining("amount") }))
     })
   })
 })

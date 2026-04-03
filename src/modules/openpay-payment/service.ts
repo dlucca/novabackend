@@ -1,11 +1,11 @@
-import { AbstractPaymentProvider, PaymentSessionStatus } from "@medusajs/framework/utils"
+import { AbstractPaymentProvider, PaymentActions, PaymentSessionStatus } from "@medusajs/framework/utils"
 import type { Logger } from "@medusajs/types"
 import { OpenpayClient } from "./openpay-client"
 
 type Options = {
   merchantId: string
   privateKey: string
-  sandbox: boolean
+  sandbox?: boolean   // optional — defaults to true
 }
 
 type InjectedDeps = {
@@ -42,7 +42,7 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     })
   }
 
-  async initiatePayment(): Promise<{ data: Record<string, unknown> }> {
+  async initiatePayment(_context: Record<string, unknown>): Promise<{ data: Record<string, unknown> }> {
     return { data: { status: "pending" } }
   }
 
@@ -65,6 +65,11 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     const ctx = context as PaymentContext
     const customer = ctx.customer
     const amountCentavos = ctx.amount ?? 0
+
+    if (amountCentavos <= 0) {
+      return { error: "Invalid payment amount: must be greater than 0" }
+    }
+
     const amountPesos = amountCentavos / 100
     const currencyCode = (ctx.currency_code ?? "mxn").toUpperCase()
     const deviceSessionId = paymentSessionData.device_session_id as string | undefined
@@ -126,34 +131,41 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     }
   }
 
-  async cancelPayment(data: Record<string, unknown>): Promise<{ data: Record<string, unknown> }> {
+  async cancelPayment(data: Record<string, unknown>): Promise<{ data: Record<string, unknown> } | { error: string }> {
     const chargeId = data.openpay_charge_id as string | undefined
     if (!chargeId) return { data }
     try {
       await this.client_.refundCharge(chargeId, { description: "Novapatch cancel" })
       return { data: { ...data, openpay_status: "refunded" } }
     } catch (err) {
-      this.logger_?.error(`Openpay cancelPayment failed: ${err instanceof Error ? err.message : err}`)
-      return { data }
+      const message = err instanceof Error ? err.message : String(err)
+      this.logger_?.error(`Openpay cancelPayment failed: ${message}`)
+      return { error: message }
     }
   }
 
-  async refundPayment(data: Record<string, unknown>, refundAmount: number): Promise<{ data: Record<string, unknown> }> {
+  async refundPayment(data: Record<string, unknown>, refundAmount: number): Promise<{ data: Record<string, unknown> } | { error: string }> {
     const chargeId = data.openpay_charge_id as string | undefined
     if (!chargeId) return { data }
-    await this.client_.refundCharge(chargeId, {
-      description: "Novapatch refund",
-      amount: refundAmount / 100,
-    })
-    return { data: { ...data, openpay_status: "refunded" } }
+    try {
+      await this.client_.refundCharge(chargeId, {
+        description: "Novapatch refund",
+        amount: refundAmount / 100,
+      })
+      return { data: { ...data, openpay_status: "refunded" } }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      this.logger_?.error(`Openpay refundPayment failed: ${message}`)
+      return { error: message }
+    }
   }
 
   async deletePayment(): Promise<void> {
     // Nothing to delete on Openpay side
   }
 
-  async getWebhookActionAndData() {
-    return { action: "not_supported" as any }
+  async getWebhookActionAndData(): Promise<{ action: PaymentActions; data?: Record<string, unknown> }> {
+    return { action: PaymentActions.NOT_SUPPORTED }
   }
 }
 
