@@ -23,13 +23,15 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Fetch subscriptions via the customer ↔ subscription remote link
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: result } = await query.graph({
-    entity: "customer",
-    filters: { id: customerId },
-    fields: ["id", "subscriptions.*"],
-  })
-
-  const subscriptions = (result?.[0] as any)?.subscriptions ?? []
-
-  res.json({ subscriptions })
+  try {
+    const { data: result } = await query.graph({
+      entity: "customer",
+      filters: { id: customerId },
+      fields: ["id", "subscriptions.*"],
+    })
+    const subscriptions = (result?.[0] as any)?.subscriptions ?? []
+    res.json({ subscriptions })
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch subscriptions" })
+  }
 }

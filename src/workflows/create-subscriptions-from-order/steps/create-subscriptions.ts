@@ -6,6 +6,12 @@ type CreateSubscriptionsInput = {
   order_id: string
 }
 
+type CompensationData = {
+  subscriptionIds: string[]
+  customerLinks: Array<{ customer_id: string; subscription_id: string }>
+  variantLinks: Array<{ subscription_id: string; product_variant_id: string }>
+}
+
 export const createSubscriptionsStep = createStep(
   "create-subscriptions-step",
   async (input: CreateSubscriptionsInput, { container }) => {
@@ -13,10 +19,20 @@ export const createSubscriptionsStep = createStep(
     const subscriptionService = container.resolve(SUBSCRIPTION_MODULE)
     const customerService = container.resolve(Modules.CUSTOMER)
     const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+    const logger = container.resolve("logger")
+
+    // Idempotency check: if subscriptions already exist for this order, return early
+    const existing = await subscriptionService.listSubscriptions({ original_order_id: input.order_id })
+    if (existing.length > 0) {
+      return new StepResponse(
+        { subscription_ids: existing.map((s: any) => s.id) },
+        null as unknown as CompensationData // nothing to compensate — we didn't create these
+      )
+    }
 
     // Retrieve order with items and payment data
     const order = await orderService.retrieveOrder(input.order_id, {
-      relations: ["items", "payment_collections", "payment_collections.payments"],
+      relations: ["items", "items.variant", "payment_collections", "payment_collections.payments"],
     })
 
     const subscriptionItems = (order.items ?? []).filter(
@@ -24,14 +40,27 @@ export const createSubscriptionsStep = createStep(
     )
 
     if (subscriptionItems.length === 0) {
-      return new StepResponse({ subscription_ids: [] }, [] as string[])
+      return new StepResponse(
+        { subscription_ids: [] },
+        { subscriptionIds: [], customerLinks: [], variantLinks: [] }
+      )
     }
 
     const now = new Date()
     const createdIds: string[] = []
+    const customerLinks: CompensationData["customerLinks"] = []
+    const variantLinks: CompensationData["variantLinks"] = []
 
     for (const item of subscriptionItems) {
-      const intervalDays = Number(item.metadata?.interval_days ?? 30)
+      const rawInterval = item.metadata?.interval_days
+      const intervalDays = Number(rawInterval)
+      if (![30, 60, 90].includes(intervalDays)) {
+        logger.warn(
+          `[create-subscriptions-step] Skipping item ${item.id}: invalid interval_days "${rawInterval}". Expected 30, 60, or 90.`
+        )
+        continue
+      }
+
       const nextBillingDate = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000)
 
       const [subscription] = await subscriptionService.createSubscriptions([
@@ -57,16 +86,19 @@ export const createSubscriptionsStep = createStep(
             [SUBSCRIPTION_MODULE]: { subscription_id: subscription.id },
           },
         ])
+        customerLinks.push({ customer_id: order.customer_id, subscription_id: subscription.id })
       }
 
       // Link Subscription ↔ ProductVariant (stored link defined in src/links/subscription-product-variant.ts)
-      if ((item as any).variant_id) {
+      const variantId = (item as any).variant?.id ?? (item as any).variant_id
+      if (variantId) {
         await remoteLink.create([
           {
             [SUBSCRIPTION_MODULE]: { subscription_id: subscription.id },
-            [Modules.PRODUCT]: { product_variant_id: (item as any).variant_id },
+            [Modules.PRODUCT]: { product_variant_id: variantId },
           },
         ])
+        variantLinks.push({ subscription_id: subscription.id, product_variant_id: variantId })
       }
     }
 
@@ -89,13 +121,38 @@ export const createSubscriptionsStep = createStep(
       }
     }
 
-    return new StepResponse({ subscription_ids: createdIds }, createdIds)
+    return new StepResponse(
+      { subscription_ids: createdIds },
+      { subscriptionIds: createdIds, customerLinks, variantLinks }
+    )
   },
 
-  // Compensation: if later steps fail, delete the subscriptions we created
-  async (createdIds: string[], { container }) => {
-    if (!createdIds?.length) return
+  // Compensation: if later steps fail, dismiss remote links and delete the subscriptions we created
+  async (data: CompensationData | null, { container }) => {
+    if (!data) return
+    const { subscriptionIds, customerLinks, variantLinks } = data
+    const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK)
     const subscriptionService = container.resolve(SUBSCRIPTION_MODULE)
-    await subscriptionService.deleteSubscriptions(createdIds)
+
+    // Dismiss remote links first (before deleting subscriptions)
+    if (customerLinks?.length) {
+      await remoteLink.dismiss(
+        customerLinks.map(({ customer_id, subscription_id }) => ({
+          [Modules.CUSTOMER]: { customer_id },
+          [SUBSCRIPTION_MODULE]: { subscription_id },
+        }))
+      )
+    }
+    if (variantLinks?.length) {
+      await remoteLink.dismiss(
+        variantLinks.map(({ subscription_id, product_variant_id }) => ({
+          [SUBSCRIPTION_MODULE]: { subscription_id },
+          [Modules.PRODUCT]: { product_variant_id },
+        }))
+      )
+    }
+    if (subscriptionIds?.length) {
+      await subscriptionService.deleteSubscriptions(subscriptionIds)
+    }
   }
 )
