@@ -25,10 +25,37 @@ Novapatch backend — headless e-commerce engine for a vitamin-patch subscriptio
 
 ```bash
 npx medusa develop          # Dev server on :9000
-npx medusa db:generate      # Generate migrations after data model changes
-npx medusa db:migrate       # Run migrations
-npx medusa seed             # Seed data
+npx medusa db:generate subscriptionModuleService  # Generate migrations for subscription module
+npx medusa db:migrate       # Run migrations + sync links
+npx medusa exec ./src/scripts/seed-novapatch.ts   # Seed 6 products with 4 price tiers
 npx medusa user -e EMAIL -p PASS  # Create admin user
+```
+
+## Project Structure (Phase 1)
+
+```
+src/
+├── modules/subscription/          # Custom module: Subscription + SubscriptionOrder
+│   ├── models/subscription.ts     # DML data model (status, interval_days, next_billing_date)
+│   ├── models/subscription-order.ts  # DML data model (cycle_number)
+│   ├── service.ts                 # Extends MedusaService factory (auto CRUD)
+│   └── index.ts                   # SUBSCRIPTION_MODULE = "subscriptionModuleService"
+├── links/                         # Module links to native Medusa entities
+│   ├── subscription-customer.ts   # Customer ↔ Subscription (stored, isList)
+│   ├── subscription-product-variant.ts  # Subscription ↔ ProductVariant (stored)
+│   ├── subscription-order.ts      # Subscription → Order (readOnly via original_order_id)
+│   └── subscription-order-order.ts  # SubscriptionOrder → Order (readOnly via order_id)
+├── workflows/                     # Subscription management workflows (each with compensation)
+│   ├── pause-subscription/        # active → paused
+│   ├── resume-subscription/       # paused → active (recalculates next_billing_date)
+│   ├── cancel-subscription/       # any → canceled
+│   └── update-subscription-frequency/  # update interval_days (30|60|90)
+├── api/
+│   ├── middlewares.ts             # Clerk JWT middleware on /store/me/*
+│   └── store/me/subscriptions/    # Protected subscription routes
+│       ├── route.ts               # GET list
+│       └── [id]/(pause|resume|cancel|frequency)/route.ts  # POST actions
+└── scripts/seed-novapatch.ts      # Seeds products, region, sales channel, inventory
 ```
 
 ## Domain Model
