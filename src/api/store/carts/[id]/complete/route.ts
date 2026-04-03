@@ -54,7 +54,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Inject the Openpay token into the payment session data
   const paymentModuleService = req.scope.resolve(Modules.PAYMENT)
-  await paymentModuleService.updatePaymentSession(session.id, {
+  await (paymentModuleService as any).updatePaymentSession({
+    id: session.id,
     data: {
       ...(session.data ?? {}),
       openpay_token_id: openpayTokenId,

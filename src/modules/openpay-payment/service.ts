@@ -42,27 +42,40 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     })
   }
 
-  async initiatePayment(_context: Record<string, unknown>): Promise<{ data: Record<string, unknown> }> {
+  async initiatePayment(_input: any): Promise<any> {
     return { data: { status: "pending" } }
   }
 
-  async updatePaymentSession(data: Record<string, unknown>): Promise<{ data: Record<string, unknown> }> {
-    return { data }
+  async updatePayment(_input: any): Promise<any> {
+    return { data: {} }
   }
 
-  async authorizePayment(
-    paymentSessionData: Record<string, unknown>,
-    context: Record<string, unknown>
-  ): Promise<
-    | { error: string; code?: string; detail?: string }
-    | { status: PaymentSessionStatus; data: Record<string, unknown> }
-  > {
+  async getPaymentStatus(_input: any): Promise<any> {
+    return PaymentSessionStatus.PENDING
+  }
+
+  // Supports both Medusa v2.13 single-input form and the legacy 2-arg form used in tests:
+  //   v2.13:  authorizePayment({ data: sessionData, context: paymentContext })
+  //   legacy: authorizePayment(sessionData, paymentContext)
+  async authorizePayment(input: any, legacyContext?: any): Promise<any> {
+    let paymentSessionData: Record<string, unknown>
+    let ctx: PaymentContext
+
+    if (legacyContext !== undefined) {
+      // Called with 2 args (unit tests)
+      paymentSessionData = input ?? {}
+      ctx = legacyContext as PaymentContext
+    } else {
+      // Called with single DTO (Medusa v2.13)
+      paymentSessionData = input?.data ?? {}
+      ctx = (input?.context ?? {}) as PaymentContext
+    }
+
     const openpayTokenId = paymentSessionData.openpay_token_id as string | undefined
     if (!openpayTokenId) {
       return { error: "Missing openpay_token_id in payment session data" }
     }
 
-    const ctx = context as PaymentContext
     const customer = ctx.customer
     const amountCentavos = ctx.amount ?? 0
 
@@ -116,11 +129,13 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
   }
 
   // Openpay charges are immediate — capture is a no-op
-  async capturePayment(data: Record<string, unknown>): Promise<{ data: Record<string, unknown> }> {
+  async capturePayment(input: any): Promise<any> {
+    const data: Record<string, unknown> = input?.data ?? input ?? {}
     return { data }
   }
 
-  async retrievePayment(data: Record<string, unknown>): Promise<{ data: Record<string, unknown> }> {
+  async retrievePayment(input: any): Promise<any> {
+    const data: Record<string, unknown> = input?.data ?? input ?? {}
     const chargeId = data.openpay_charge_id as string | undefined
     if (!chargeId) return { data }
     try {
@@ -131,7 +146,8 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     }
   }
 
-  async cancelPayment(data: Record<string, unknown>): Promise<{ data: Record<string, unknown> } | { error: string }> {
+  async cancelPayment(input: any): Promise<any> {
+    const data: Record<string, unknown> = input?.data ?? input ?? {}
     const chargeId = data.openpay_charge_id as string | undefined
     if (!chargeId) return { data }
     try {
@@ -144,7 +160,23 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     }
   }
 
-  async refundPayment(data: Record<string, unknown>, refundAmount: number): Promise<{ data: Record<string, unknown> } | { error: string }> {
+  // Supports both v2.13 single-input form and legacy 2-arg form used in tests:
+  //   v2.13:  refundPayment({ data, amount })
+  //   legacy: refundPayment(data, refundAmountCentavos)
+  async refundPayment(input: any, legacyAmount?: any): Promise<any> {
+    let data: Record<string, unknown>
+    let refundAmount: number
+
+    if (legacyAmount !== undefined) {
+      // Called with 2 args (unit tests)
+      data = input ?? {}
+      refundAmount = legacyAmount
+    } else {
+      // Called with single DTO (Medusa v2.13)
+      data = input?.data ?? input ?? {}
+      refundAmount = input?.amount ?? 0
+    }
+
     const chargeId = data.openpay_charge_id as string | undefined
     if (!chargeId) return { data }
     try {
@@ -160,11 +192,12 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     }
   }
 
-  async deletePayment(): Promise<void> {
+  async deletePayment(_input: any): Promise<any> {
     // Nothing to delete on Openpay side
+    return {}
   }
 
-  async getWebhookActionAndData(): Promise<{ action: PaymentActions; data?: Record<string, unknown> }> {
+  async getWebhookActionAndData(_input: any): Promise<any> {
     return { action: PaymentActions.NOT_SUPPORTED }
   }
 }
