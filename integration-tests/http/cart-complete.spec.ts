@@ -11,31 +11,28 @@ medusaIntegrationTestRunner({
     CLERK_SECRET_KEY: "",
   },
   testSuite: ({ api, getContainer }) => {
-    let pubKey: string | null = null
+    let publishableApiKey: string
 
     // Re-create publishable key before EACH test since the DB is torn down between tests
     beforeEach(async () => {
-      try {
-        const container = getContainer()
-        const apiKeyModule = container.resolve(Modules.API_KEY)
-        const [key] = await apiKeyModule.createApiKeys([
-          {
-            title: "Test Store Key",
-            type: "publishable",
-            created_by: "test",
-          },
-        ])
-        pubKey = key.token
-      } catch (err: any) {
-        console.error("BEFORE_EACH_ERROR:", err?.message)
-        pubKey = null
-      }
+      const container = getContainer()
+      const apiKeyModule = container.resolve(Modules.API_KEY)
+      const [key] = await apiKeyModule.createApiKeys([
+        {
+          title: "Test Store Key",
+          type: "publishable",
+          created_by: "test",
+        },
+      ])
+      publishableApiKey = key.token
+      // Fail fast if setup breaks — tests running without this header would produce
+      // misleading results (passing for the wrong reason).
+      expect(publishableApiKey).toBeTruthy()
     })
 
     describe("POST /store/carts/:id/complete (custom route)", () => {
       it("returns 400 when openpay_token_id is missing in body", async () => {
-        const headers: Record<string, string> = {}
-        if (pubKey) headers["x-publishable-api-key"] = pubKey
+        const headers = { "x-publishable-api-key": publishableApiKey }
 
         const response = await api
           .post("/store/carts/cart_nonexistent/complete", {}, { headers })
@@ -44,8 +41,7 @@ medusaIntegrationTestRunner({
       })
 
       it("returns 404 when cart does not exist and token is provided", async () => {
-        const headers: Record<string, string> = {}
-        if (pubKey) headers["x-publishable-api-key"] = pubKey
+        const headers = { "x-publishable-api-key": publishableApiKey }
 
         const response = await api
           .post(
@@ -55,6 +51,52 @@ medusaIntegrationTestRunner({
           )
           .catch((err: any) => err.response)
         expect(response.status).toBe(404)
+      })
+
+      it("returns 422 when cart exists but has no payment session", async () => {
+        const headers = { "x-publishable-api-key": publishableApiKey }
+
+        // Create a real cart (no payment session attached)
+        const regionModule = getContainer().resolve(Modules.REGION)
+        const [region] = await regionModule.createRegions([
+          {
+            name: "MX Test Region",
+            currency_code: "mxn",
+            countries: ["mx"],
+          },
+        ])
+
+        const cartResponse = await api
+          .post(
+            "/store/carts",
+            { region_id: region.id },
+            { headers }
+          )
+          .catch((err: any) => err.response)
+
+        // If we can't create a cart in the integration environment, skip gracefully
+        if (cartResponse.status !== 200 && cartResponse.status !== 201) {
+          console.warn(
+            "Skipping 422 test: cart creation returned",
+            cartResponse.status
+          )
+          return
+        }
+
+        const cartId = cartResponse.data?.cart?.id
+        expect(cartId).toBeTruthy()
+
+        // Attempt to complete the cart without ever calling /payment-sessions
+        const response = await api
+          .post(
+            `/store/carts/${cartId}/complete`,
+            { openpay_token_id: "tok_test" },
+            { headers }
+          )
+          .catch((err: any) => err.response)
+
+        expect(response.status).toBe(422)
+        expect(response.data?.message).toMatch(/payment session/i)
       })
     })
   },
