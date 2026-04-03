@@ -1,76 +1,304 @@
-<p align="center">
-  <a href="https://www.medusajs.com">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/59018053/229103275-b5e482bb-4601-46e6-8142-244f531cebdb.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://user-images.githubusercontent.com/59018053/229103726-e5b529a3-9b3f-4970-8a1f-c6af37f087bf.svg">
-    <img alt="Medusa logo" src="https://user-images.githubusercontent.com/59018053/229103726-e5b529a3-9b3f-4970-8a1f-c6af37f087bf.svg">
-    </picture>
-  </a>
-</p>
-<h1 align="center">
-  Medusa
-</h1>
+# Novapatch Backend
 
-<h4 align="center">
-  <a href="https://docs.medusajs.com">Documentation</a> |
-  <a href="https://www.medusajs.com">Website</a>
-</h4>
+Motor de e-commerce headless para la plataforma de parches vitamínicos por suscripción Novapatch. Construido sobre **Medusa.js v2** con soporte multi-región (México como mercado inicial; Brasil, Argentina, Colombia y Chile en roadmap).
 
-<p align="center">
-  Building blocks for digital commerce
-</p>
-<p align="center">
-  <a href="https://github.com/medusajs/medusa/blob/master/CONTRIBUTING.md">
-    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat" alt="PRs welcome!" />
-  </a>
-    <a href="https://www.producthunt.com/posts/medusa"><img src="https://img.shields.io/badge/Product%20Hunt-%231%20Product%20of%20the%20Day-%23DA552E" alt="Product Hunt"></a>
-  <a href="https://discord.gg/xpCwq3Kfn8">
-    <img src="https://img.shields.io/badge/chat-on%20discord-7289DA.svg" alt="Discord Chat" />
-  </a>
-  <a href="https://twitter.com/intent/follow?screen_name=medusajs">
-    <img src="https://img.shields.io/twitter/follow/medusajs.svg?label=Follow%20@medusajs" alt="Follow @medusajs" />
-  </a>
-</p>
+---
 
-## Compatibility
+## Stack
 
-This starter is compatible with versions >= 2 of `@medusajs/medusa`. 
+| Capa | Tecnología |
+|------|------------|
+| Framework | Medusa.js v2.13.1 (Node.js / TypeScript) |
+| Base de datos | PostgreSQL |
+| Cache y colas | Redis |
+| API | REST headless — `http://localhost:9000` |
+| Auth | Clerk (JWT Bearer en rutas `/store/me/*`) |
+| Pagos | Openpay (México — tokenización server-to-server) |
+| Email transaccional | Resend + React Email (Phase 3) |
 
-## Getting Started
+---
 
-Visit the [Quickstart Guide](https://docs.medusajs.com/learn/installation) to set up a server.
+## Requisitos
 
-Visit the [Docs](https://docs.medusajs.com/learn/installation#get-started) to learn more about our system requirements.
+- Node.js >= 20
+- PostgreSQL
+- Redis
+- npm >= 10
 
-## What is Medusa
+---
 
-Medusa is a set of commerce modules and tools that allow you to build rich, reliable, and performant commerce applications without reinventing core commerce logic. The modules can be customized and used to build advanced ecommerce stores, marketplaces, or any product that needs foundational commerce primitives. All modules are open-source and freely available on npm.
+## Variables de entorno
 
-Learn more about [Medusa’s architecture](https://docs.medusajs.com/learn/introduction/architecture) and [commerce modules](https://docs.medusajs.com/learn/fundamentals/modules/commerce-modules) in the Docs.
+Crear `.env` en la raíz del proyecto:
 
-## Build with AI Agents
+```bash
+# ── Base de datos y cache ──────────────────────────────────────────────────────
+DATABASE_URL=postgres://user:password@localhost:5432/novabackend
+REDIS_URL=redis://localhost:6379
 
-### Claude Code Plugin
+# ── Seguridad ──────────────────────────────────────────────────────────────────
+JWT_SECRET=supersecret
+COOKIE_SECRET=supersecret
 
-If you use AI agents like Claude Code, check out the [medusa-dev Claude Code plugin](https://github.com/medusajs/medusa-claude-plugins).
+# ── CORS ───────────────────────────────────────────────────────────────────────
+STORE_CORS=http://localhost:3000
+ADMIN_CORS=http://localhost:9000
+AUTH_CORS=http://localhost:9000,http://localhost:3000
 
-### Other Agents
+# ── Clerk (Auth) ───────────────────────────────────────────────────────────────
+CLERK_SECRET_KEY=sk_test_...
+# Dejar vacío en desarrollo local activa el bypass: clerk_email = dev@novapatch.mx
 
-If you use AI agents other than Claude Code, copy the [skills directory](https://github.com/medusajs/medusa-claude-plugins/tree/main/plugins/medusa-dev/skills) into your agent's relevant `skills` directory.
+# ── Openpay (Pagos México) ─────────────────────────────────────────────────────
+OPENPAY_MERCHANT_ID=
+OPENPAY_PRIVATE_KEY=
+OPENPAY_SANDBOX=true     # false en producción
+```
 
-### MCP Server
+---
 
-You can also add the MCP server `https://docs.medusajs.com/mcp` to your AI agents to answer questions related to Medusa. The `medusa-dev` Claude Code plugin includes this MCP server by default.
+## Comandos
 
-## Community & Contributions
+```bash
+# Desarrollo
+npx medusa develop              # Servidor en :9000 con hot-reload
 
-The community and core team are available in [GitHub Discussions](https://github.com/medusajs/medusa/discussions), where you can ask for support, discuss roadmap, and share ideas.
+# Build y producción
+npm run build                   # Compila TypeScript → .medusa/server/
+npm start                       # Levanta el servidor compilado
 
-Join our [Discord server](https://discord.com/invite/medusajs) to meet other community members.
+# Base de datos
+npx medusa db:migrate           # Aplica migraciones + sincroniza links
+npx medusa db:generate subscriptionModuleService  # Genera nueva migración
 
-## Other channels
+# Datos iniciales
+npx medusa exec ./src/scripts/seed-novapatch.ts   # Carga 6 productos con 4 tiers de precio
+npx medusa user -e admin@novapatch.mx -p novapatch123  # Crea usuario admin
 
-- [GitHub Issues](https://github.com/medusajs/medusa/issues)
-- [Twitter](https://twitter.com/medusajs)
-- [LinkedIn](https://www.linkedin.com/company/medusajs)
-- [Medusa Blog](https://medusajs.com/blog/)
+# Tests
+npm run test:unit               # Tests unitarios (src/**/__tests__/**/*.unit.spec.ts)
+npm run test:integration:http   # Tests de integración HTTP (integration-tests/http/)
+```
+
+---
+
+## Estructura del proyecto
+
+```
+src/
+├── modules/
+│   ├── subscription/                          # Módulo custom: Subscription + SubscriptionOrder
+│   │   ├── models/subscription.ts             # DML: status, interval_days, next_billing_date
+│   │   ├── models/subscription-order.ts       # DML: cycle_number
+│   │   ├── service.ts                         # Extiende MedusaService (CRUD automático)
+│   │   └── index.ts                           # SUBSCRIPTION_MODULE = "subscriptionModuleService"
+│   └── openpay-payment/                       # Provider de pagos Openpay
+│       ├── openpay-client.ts                  # HTTP wrapper (fetch nativo, auth Basic)
+│       ├── service.ts                         # AbstractPaymentProvider
+│       └── index.ts                           # ModuleProvider(Modules.PAYMENT, ...)
+├── links/                                     # Links entre módulos
+│   ├── subscription-customer.ts              # Customer ↔ Subscription (isList)
+│   ├── subscription-product-variant.ts       # Subscription ↔ ProductVariant
+│   ├── subscription-order.ts                 # Subscription → Order (readOnly)
+│   └── subscription-order-order.ts           # SubscriptionOrder → Order (readOnly)
+├── workflows/
+│   ├── create-subscriptions-from-order/      # Crea Subscriptions al completar una orden
+│   ├── pause-subscription/                   # active → paused
+│   ├── resume-subscription/                  # paused → active (recalcula next_billing_date)
+│   ├── cancel-subscription/                  # any → canceled
+│   └── update-subscription-frequency/        # Actualiza interval_days (30|60|90)
+├── subscribers/
+│   └── order-placed.ts                       # Escucha order.placed → ejecuta workflow
+├── api/
+│   ├── middlewares.ts                         # Clerk JWT en /store/me/*
+│   └── store/
+│       ├── carts/[id]/complete/route.ts       # POST: inyecta openpay_token_id y completa carrito
+│       └── me/
+│           ├── subscriptions/route.ts         # GET: lista suscripciones del usuario
+│           ├── subscriptions/[id]/pause/      # POST: pausar
+│           ├── subscriptions/[id]/resume/     # POST: reanudar
+│           ├── subscriptions/[id]/cancel/     # POST: cancelar
+│           ├── subscriptions/[id]/frequency/  # POST: cambiar frecuencia
+│           ├── payment-methods/route.ts       # GET: tarjetas del vault Openpay
+│           └── payment-methods/default/       # POST: cambiar tarjeta por defecto
+├── scripts/
+│   └── seed-novapatch.ts                     # Seed: región MX, 6 productos, 4 precios c/u
+└── __tests__/
+    └── workflows/                            # Tests unitarios de lógica de workflows
+```
+
+---
+
+## Modelo de dominio
+
+### Productos
+
+6 SKUs: `energy`, `sleep`, `glow`, `shield`, `zen`, `woman`. Cada uno con 4 variantes de precio:
+
+| Variante | Descuento | `interval_days` |
+|----------|-----------|-----------------|
+| Única vez | — | — |
+| Mensual | 20% | 30 |
+| Bimestral | 15% | 60 |
+| Trimestral | 10% | 90 |
+
+### Entidades custom
+
+**Subscription**
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `id` | string | PK |
+| `status` | enum | `active` \| `paused` \| `canceled` \| `past_due` \| `delayed_out_of_stock` |
+| `interval_days` | number | `30` \| `60` \| `90` |
+| `next_billing_date` | Date | Próxima fecha de cobro |
+| `original_order_id` | string | FK → Order (orden original) |
+
+**SubscriptionOrder**
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `subscription_id` | string | FK → Subscription |
+| `order_id` | string | FK → Order (cada ciclo) |
+| `cycle_number` | number | Número de ciclo (1, 2, 3…) |
+
+### Metadata en entidades nativas
+
+| Entidad | Campo | Valor |
+|---------|-------|-------|
+| Customer | `metadata.openpay_customer_id` | ID de cliente en vault Openpay |
+| Customer | `metadata.openpay_default_card_id` | ID de tarjeta por defecto |
+| LineItem | `metadata.is_subscription` | `true` \| `false` |
+| LineItem | `metadata.interval_days` | `30` \| `60` \| `90` |
+| LineItem | `metadata.discount_percentage` | `20` \| `15` \| `10` |
+
+---
+
+## API
+
+### Catálogo (público)
+
+```
+GET  /store/products                    Lista productos con precios por región
+GET  /store/variants/:id                Detalle de una variante
+```
+
+### Carrito (público)
+
+```
+POST /store/carts                       Crear carrito con region_id
+POST /store/carts/:id/line-items        Agregar ítem (único o suscripción)
+POST /store/carts/:id/payment-sessions  Crear sesión de pago (Openpay)
+POST /store/carts/:id/complete          Completar orden { openpay_token_id, device_session_id }
+```
+
+Payload para ítem de suscripción:
+```json
+{
+  "variant_id": "variant_xxx",
+  "quantity": 1,
+  "metadata": {
+    "is_subscription": true,
+    "interval_days": 30,
+    "discount_percentage": 20
+  }
+}
+```
+
+### Suscripciones (requiere `Authorization: Bearer <clerk_jwt>`)
+
+```
+GET  /store/me/subscriptions            Lista suscripciones del usuario autenticado
+POST /store/me/subscriptions/:id/pause      Pausar
+POST /store/me/subscriptions/:id/resume     Reanudar (recalcula next_billing_date)
+POST /store/me/subscriptions/:id/cancel     Cancelar
+POST /store/me/subscriptions/:id/frequency  Cambiar frecuencia { interval_days: 30|60|90 }
+```
+
+### Métodos de pago (requiere `Authorization: Bearer <clerk_jwt>`)
+
+```
+GET  /store/me/payment-methods              Lista tarjetas del vault Openpay
+POST /store/me/payment-methods/default      Cambiar tarjeta por defecto { openpay_token_id }
+```
+
+---
+
+## Flujo de pago (triangular PCI-DSS)
+
+```
+Browser → Openpay : datos de tarjeta → tok_XXX   (nunca tocan el servidor)
+Browser → Medusa  : tok_XXX + device_session_id
+Medusa  → Openpay : cobro server-to-server con tok_XXX
+```
+
+---
+
+## Autenticación
+
+El middleware de Clerk en `src/api/middlewares.ts` valida el JWT en todas las rutas `/store/me/*` e inyecta `req.clerk_email` en el request.
+
+**Bypass de desarrollo:** si `CLERK_SECRET_KEY` está vacío, cualquier header `Authorization: Bearer <cualquier-valor>` pasa con `clerk_email = dev@novapatch.mx`. Esto permite probar las rutas protegidas sin cuenta de Clerk.
+
+---
+
+## Despliegue en Railway
+
+El proyecto requiere 3 servicios en el mismo proyecto de Railway:
+
+| Servicio | Tipo | Notas |
+|----------|------|-------|
+| PostgreSQL | Plugin nativo | `DATABASE_URL` se inyecta automáticamente |
+| Redis | Plugin nativo | `REDIS_URL` se inyecta automáticamente |
+| novabackend | GitHub repo | Node.js, ver comandos abajo |
+
+**Build Command:**
+```bash
+npm install && npm run build
+```
+
+**Start Command:**
+```bash
+npx medusa db:migrate && npm start
+```
+
+Las migraciones corren automáticamente en cada deploy. Medusa es idempotente — si ya están aplicadas, no hace nada.
+
+**Variables de entorno en Railway** (además de las de desarrollo):
+```bash
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+REDIS_URL=${{Redis.REDIS_URL}}
+NODE_ENV=production
+OPENPAY_SANDBOX=false
+```
+
+---
+
+## Integraciones
+
+| Servicio | Rol |
+|----------|-----|
+| **Openpay** | Vault de tarjetas, tokenización, cobros server-to-server (México) |
+| **Clerk** | Validación de JWT en rutas protegidas, contexto de cliente |
+| **Resend** | Emails transaccionales vía Event Bus (Phase 3) |
+
+---
+
+## Roadmap
+
+### Phase 2 — Pagos y suscripciones ✅
+- [x] Módulo Openpay (`OpenpayClient` + `AbstractPaymentProvider`)
+- [x] Override de `POST /store/carts/:id/complete`
+- [x] Subscriber `order.placed` → crea `Subscription` por cada ítem de suscripción
+- [x] Rutas de gestión de suscripciones (`/store/me/subscriptions/*`)
+- [x] Rutas de métodos de pago (`/store/me/payment-methods`)
+
+### Phase 3 — Billing recurrente y notificaciones
+- [ ] Cron job diario `ProcessDailySubscriptions` (Redis)
+- [ ] Emails transaccionales con Resend + React Email
+  - `subscription.created` — bienvenida con calendario de cobros
+  - `subscription.renewed` — recibo de cobro mensual
+  - `subscription.payment_failed` — alerta con link para actualizar tarjeta
+  - `subscription.upcoming_charge` — recordatorio 3 días antes
+- [ ] Widget de admin (detalle de cliente → suscripciones)
+- [ ] Ruta admin `/a/subscriptions` — tabla global con filtros y exportación CSV
