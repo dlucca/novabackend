@@ -66,4 +66,28 @@ describe("OpenpayClient", () => {
     await client.refundCharge("ch_1", { description: "Customer refund", amount: 319.20 })
     expect(mockFetch.mock.calls[0][0]).toBe("https://sandbox-api.openpay.mx/v1/m123/charges/ch_1/refund")
   })
+
+  it("getCharge GETs /charges/:id", async () => {
+    mockFetch.mockReturnValue(ok({ id: "ch_1", status: "completed", amount: 319.20, currency: "MXN" }))
+    await client.getCharge("ch_1")
+    expect(mockFetch.mock.calls[0][0]).toBe("https://sandbox-api.openpay.mx/v1/m123/charges/ch_1")
+    expect(mockFetch.mock.calls[0][1].method).toBe("GET")
+  })
+
+  it("uses production base URL when sandbox is false", async () => {
+    const prodClient = new OpenpayClient({ merchantId: "m123", privateKey: "sk_test", sandbox: false })
+    mockFetch.mockReturnValue(ok([]))
+    await prodClient.listCards("cust_1")
+    expect(mockFetch.mock.calls[0][0]).toBe("https://api.openpay.mx/v1/m123/customers/cust_1/cards")
+  })
+
+  it("throws with status message when error body is not JSON", async () => {
+    mockFetch.mockReturnValue(Promise.resolve({
+      ok: false,
+      status: 503,
+      json: () => Promise.reject(new SyntaxError("Unexpected token")),
+    }))
+    await expect(client.createCustomer({ name: "A", last_name: "B", email: "a@b.com" }))
+      .rejects.toThrow("Openpay error 503")
+  })
 })

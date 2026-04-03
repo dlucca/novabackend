@@ -47,16 +47,21 @@ export class OpenpayClient {
       method,
       headers: {
         Authorization: this.authHeader,
-        "Content-Type": "application/json",
+        ...(body ? { "Content-Type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     })
-    const data = await response.json()
+
     if (!response.ok) {
-      const err = data as { description?: string }
-      throw new Error(err.description ?? `Openpay error ${response.status}`)
+      let description = `Openpay error ${response.status}`
+      try {
+        const err = await response.json() as { description?: string }
+        if (err.description) description = err.description
+      } catch { /* non-JSON body — use the status fallback */ }
+      throw new Error(description)
     }
-    return data as T
+
+    return await response.json() as T
   }
 
   createCustomer(params: {
