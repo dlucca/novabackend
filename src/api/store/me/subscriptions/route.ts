@@ -29,7 +29,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       filters: { id: customerId },
       fields: ["id", "subscriptions.*"],
     })
-    const subscriptions = (result?.[0] as any)?.subscriptions ?? []
+    const raw = (result?.[0] as any)?.subscriptions ?? []
+    // Map backend field names to the shape the frontend expects (MedusaSubscription type)
+    const subscriptions = raw.map((s: any) => ({
+      id: s.id,
+      status: s.status,                                // "canceled" — frontend type accepts it
+      interval_days: s.interval_days,
+      next_delivery_at: s.next_billing_date,           // frontend uses next_delivery_at
+      product_title: s.metadata?.product_title ?? null,
+      variant_id: s.variant_id ?? null,
+      unit_price: s.unit_price ?? null,
+      quantity: s.quantity ?? null,
+      created_at: s.created_at,
+    }))
     res.json({ subscriptions })
   } catch (err) {
     const logger = req.scope.resolve("logger")

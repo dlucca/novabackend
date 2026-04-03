@@ -72,5 +72,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   )
 
-  res.json({ success: true, default_card_id: cardId })
+  // Return shape matching MedusaPaymentMethod type expected by the frontend
+  res.json({
+    payment_method: {
+      id: cardId,
+      brand: null,
+      last4: null,
+      exp_month: null,
+      exp_year: null,
+      is_default: true,
+    },
+  })
 }

@@ -43,11 +43,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const payment_methods = cards.map((card) => ({
       id: card.id,
       brand: card.brand,
-      last4: card.card_number,
-      holder_name: card.holder_name,
-      expiration_month: card.expiration_month,
-      expiration_year: card.expiration_year,
-      bank_name: card.bank_name,
+      last4: String(card.card_number).slice(-4),  // last 4 digits only
+      exp_month: Number(card.expiration_month),   // frontend type: exp_month (number)
+      exp_year: Number(card.expiration_year),     // frontend type: exp_year (number)
       is_default: card.id === defaultCardId,
     }))
 
