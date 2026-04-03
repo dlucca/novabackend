@@ -4,7 +4,7 @@ loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
 module.exports = defineConfig({
   admin: {
-    disable: true,  // Headless API — admin dashboard not served from this backend
+    disable: false,
   },
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
