@@ -44,6 +44,15 @@
           "length": 6,
           "mappedType": "datetime"
         },
+        "original_order_id": {
+          "name": "original_order_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -132,6 +141,15 @@
           "primary": false,
           "nullable": false,
           "mappedType": "integer"
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
         },
         "subscription_id": {
           "name": "subscription_id",

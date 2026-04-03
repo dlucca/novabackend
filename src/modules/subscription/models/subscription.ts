@@ -14,6 +14,7 @@ export const Subscription = model.define("subscription", {
   status: model.text().default("active"),
   interval_days: model.number(),
   next_billing_date: model.dateTime(),
+  original_order_id: model.text().nullable(),
   metadata: model.json().nullable(),
   subscription_orders: model.hasMany(() => SubscriptionOrder, {
     mappedBy: "subscription",
