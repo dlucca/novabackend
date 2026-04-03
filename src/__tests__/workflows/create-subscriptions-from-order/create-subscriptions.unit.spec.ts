@@ -13,6 +13,10 @@ function filterSubscriptionItems(items: any[]): any[] {
   return items.filter((item) => item.metadata?.is_subscription === true)
 }
 
+function isAlreadyCreated(existingSubscriptions: any[]): boolean {
+  return existingSubscriptions.length > 0
+}
+
 describe("createSubscriptionsStep — interval_days validation", () => {
   it("accepts 30, 60, 90 as valid intervals", () => {
     expect(isValidIntervalDays(30)).toBe(true)
@@ -78,18 +82,15 @@ describe("createSubscriptionsStep — next_billing_date computation", () => {
 })
 
 describe("createSubscriptionsStep — idempotency logic", () => {
-  it("returns existing IDs without creating when subscriptions already exist", () => {
-    // Simulate the idempotency check
-    const existingSubscriptions = [{ id: "sub_01" }, { id: "sub_02" }]
-    const shouldCreate = existingSubscriptions.length === 0
-    expect(shouldCreate).toBe(false)
-    const result = existingSubscriptions.map((s) => s.id)
-    expect(result).toEqual(["sub_01", "sub_02"])
+  it("returns true when subscriptions already exist for the order", () => {
+    expect(isAlreadyCreated([{ id: "sub_01" }, { id: "sub_02" }])).toBe(true)
   })
 
-  it("proceeds with creation when no existing subscriptions found", () => {
-    const existingSubscriptions: any[] = []
-    const shouldCreate = existingSubscriptions.length === 0
-    expect(shouldCreate).toBe(true)
+  it("returns false when no subscriptions exist (should proceed with creation)", () => {
+    expect(isAlreadyCreated([])).toBe(false)
+  })
+
+  it("returns true for a single existing subscription", () => {
+    expect(isAlreadyCreated([{ id: "sub_01" }])).toBe(true)
   })
 })
