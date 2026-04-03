@@ -26,7 +26,7 @@ export const createSubscriptionsStep = createStep(
     if (existing.length > 0) {
       return new StepResponse(
         { subscription_ids: existing.map((s: any) => s.id) },
-        null as unknown as CompensationData // nothing to compensate — we didn't create these
+        null // nothing to compensate — we didn't create these
       )
     }
 
@@ -106,6 +106,13 @@ export const createSubscriptionsStep = createStep(
     const openpayCustomerId = (order as any).payment_collections?.[0]
       ?.payments?.[0]?.data?.openpay_customer_id as string | undefined
 
+    if (order.customer_id && !openpayCustomerId) {
+      logger.warn(
+        `[create-subscriptions-step] Order ${order.id}: openpay_customer_id not found in payment data. ` +
+        `Future recurring billing for customer ${order.customer_id} will fail.`
+      )
+    }
+
     if (openpayCustomerId && order.customer_id) {
       const [customer] = await customerService.listCustomers({ id: order.customer_id })
       if (customer) {
@@ -133,26 +140,48 @@ export const createSubscriptionsStep = createStep(
     const { subscriptionIds, customerLinks, variantLinks } = data
     const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK)
     const subscriptionService = container.resolve(SUBSCRIPTION_MODULE)
+    const logger = container.resolve("logger")
 
-    // Dismiss remote links first (before deleting subscriptions)
+    // Dismiss remote links first (before deleting subscriptions).
+    // Each operation is wrapped independently so a failure in one never prevents the others.
     if (customerLinks?.length) {
-      await remoteLink.dismiss(
-        customerLinks.map(({ customer_id, subscription_id }) => ({
-          [Modules.CUSTOMER]: { customer_id },
-          [SUBSCRIPTION_MODULE]: { subscription_id },
-        }))
-      )
+      try {
+        await remoteLink.dismiss(
+          customerLinks.map(({ customer_id, subscription_id }) => ({
+            [Modules.CUSTOMER]: { customer_id },
+            [SUBSCRIPTION_MODULE]: { subscription_id },
+          }))
+        )
+      } catch (err) {
+        logger.error(
+          `[create-subscriptions-step] Failed to dismiss customer links: ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
     }
+
     if (variantLinks?.length) {
-      await remoteLink.dismiss(
-        variantLinks.map(({ subscription_id, product_variant_id }) => ({
-          [SUBSCRIPTION_MODULE]: { subscription_id },
-          [Modules.PRODUCT]: { product_variant_id },
-        }))
-      )
+      try {
+        await remoteLink.dismiss(
+          variantLinks.map(({ subscription_id, product_variant_id }) => ({
+            [SUBSCRIPTION_MODULE]: { subscription_id },
+            [Modules.PRODUCT]: { product_variant_id },
+          }))
+        )
+      } catch (err) {
+        logger.error(
+          `[create-subscriptions-step] Failed to dismiss variant links: ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
     }
+
     if (subscriptionIds?.length) {
-      await subscriptionService.deleteSubscriptions(subscriptionIds)
+      try {
+        await subscriptionService.deleteSubscriptions(subscriptionIds)
+      } catch (err) {
+        logger.error(
+          `[create-subscriptions-step] Failed to delete subscriptions: ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
     }
   }
 )

@@ -32,6 +32,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const subscriptions = (result?.[0] as any)?.subscriptions ?? []
     res.json({ subscriptions })
   } catch (err) {
+    const logger = req.scope.resolve("logger")
+    logger.error(
+      `[store/me/subscriptions] Failed to fetch subscriptions for customer ${customerId}: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    )
     res.status(500).json({ message: "Failed to fetch subscriptions" })
   }
 }
