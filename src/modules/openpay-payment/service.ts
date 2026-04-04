@@ -72,16 +72,22 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     }
 
     const openpayTokenId = paymentSessionData.openpay_token_id as string | undefined
+
+    // Use console.log directly — this.logger_ may not appear in Railway logs
+    console.log(`[Openpay] authorizePayment called. token=${openpayTokenId ?? "NONE"} sessionData keys=${Object.keys(paymentSessionData).join(",")}`)
+
     if (!openpayTokenId) {
+      console.error("[Openpay] MISSING openpay_token_id")
       return { error: "Missing openpay_token_id in payment session data", status: PaymentSessionStatus.ERROR, data: {} }
     }
 
     const customer = ctx.customer
     const amountCentavos = ctx.amount ?? 0
 
-    this.logger_?.info(`[Openpay] authorizePayment: amount=${amountCentavos} token=${openpayTokenId?.slice(0, 10)}...`)
+    console.log(`[Openpay] amount=${amountCentavos} currency=${ctx.currency_code} customer=${customer?.email ?? "none"}`)
 
     if (amountCentavos <= 0) {
+      console.error(`[Openpay] INVALID AMOUNT: ${amountCentavos}`)
       return { error: "Invalid payment amount: must be greater than 0", status: PaymentSessionStatus.ERROR, data: {} }
     }
 
@@ -125,7 +131,7 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      this.logger_?.error(`[Openpay] authorizePayment FAILED: ${message}`)
+      console.error(`[Openpay] authorizePayment FAILED: ${message}`)
       return { error: message, status: PaymentSessionStatus.ERROR, data: { error: message } }
     }
   }
