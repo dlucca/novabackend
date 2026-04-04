@@ -129,12 +129,17 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
         device_session_id: deviceSessionId,
       })
 
+      const redirectUrl = (paymentSessionData._redirect_url as string)
+        || process.env.STORE_CORS
+        || "https://novafrontend-theta.vercel.app"
+
       const charge = await this.client_.chargeCustomerCard(openpayCustomerId, {
         source_id: card.id,
         amount: amountPesos,
         currency: currencyCode,
         description: "Novapatch order",
         device_session_id: deviceSessionId,
+        redirect_url: redirectUrl,
       })
 
       return {

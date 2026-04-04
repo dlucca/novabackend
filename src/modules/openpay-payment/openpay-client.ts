@@ -90,6 +90,7 @@ export class OpenpayClient {
       description: string
       device_session_id?: string
       order_id?: string
+      redirect_url?: string // required for 3D Secure
     }
   ): Promise<OpenpayCharge> {
     return this.request<OpenpayCharge>("POST", `/customers/${customerId}/charges`, {
