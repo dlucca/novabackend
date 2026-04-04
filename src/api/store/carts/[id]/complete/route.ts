@@ -26,8 +26,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       fields: [
         "id",
         "payment_collection.id",
+        "payment_collection.amount",
+        "payment_collection.currency_code",
         "payment_collection.payment_sessions.id",
         "payment_collection.payment_sessions.data",
+        "payment_collection.payment_sessions.amount",
+        "payment_collection.payment_sessions.currency_code",
       ],
     })
     cart = carts?.[0] ?? null
@@ -57,6 +61,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     await (paymentModuleService as any).updatePaymentSession({
       id: session.id,
+      amount: session.amount ?? cart.payment_collection?.amount,
+      currency_code: session.currency_code ?? cart.payment_collection?.currency_code ?? "mxn",
       data: {
         ...(session.data ?? {}),
         openpay_token_id: openpayTokenId,
