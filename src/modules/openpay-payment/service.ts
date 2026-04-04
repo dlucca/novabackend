@@ -90,17 +90,18 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
 
     const customer = ctx.customer
     // Amount/currency may come from context OR from session data (saved by updatePayment)
-    const amountCentavos = (paymentSessionData._payment_amount as number) ?? ctx.amount ?? 0
+    const amountMajor = (paymentSessionData._payment_amount as number) ?? ctx.amount ?? 0
     const currencyCode = ((paymentSessionData._currency_code as string) ?? ctx.currency_code ?? "mxn").toUpperCase()
 
-    console.log(`[Openpay] amount=${amountCentavos} currency=${currencyCode} customer=${customer?.email ?? "none"}`)
+    console.log(`[Openpay] amount=${amountMajor} currency=${currencyCode} customer=${customer?.email ?? "none"}`)
 
-    if (amountCentavos <= 0) {
-      console.error(`[Openpay] INVALID AMOUNT: ${amountCentavos}`)
+    if (amountMajor <= 0) {
+      console.error(`[Openpay] INVALID AMOUNT: ${amountMajor}`)
       return { error: "Invalid payment amount: must be greater than 0", status: PaymentSessionStatus.ERROR, data: {} }
     }
 
-    const amountPesos = amountCentavos / 100
+    // Medusa v2 stores amounts in major units (pesos, not centavos)
+    const amountPesos = amountMajor
     const deviceSessionId = paymentSessionData.device_session_id as string | undefined
 
     try {
@@ -212,7 +213,7 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     try {
       await this.client_.refundCharge(chargeId, {
         description: "Novapatch refund",
-        amount: refundAmount / 100,
+        amount: refundAmount, // Medusa v2 stores in major units (pesos)
       })
       return { data: { ...data, openpay_status: "refunded" } }
     } catch (err) {

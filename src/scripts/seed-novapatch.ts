@@ -16,7 +16,7 @@ import {
 
 const PRODUCTS = ["energy", "sleep", "glow", "shield", "zen", "woman"] as const
 
-const BASE_PRICE = 75000 // $750.00 MXN in centavos
+const BASE_PRICE = 750 // $750.00 MXN — Medusa v2 stores prices in major units (pesos, not centavos)
 
 const PRICE_TIERS = [
   {
