@@ -48,8 +48,13 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
 
   async updatePayment(input: any): Promise<any> {
     // Pass through the incoming data so updatePaymentSession persists it
-    // (e.g. openpay_token_id, device_session_id injected by /complete route)
-    return { data: input?.data ?? {} }
+    // (e.g. openpay_token_id, device_session_id injected by /complete route).
+    // Also save amount/currency in data because authorizePayment doesn't
+    // receive them from Medusa's context.
+    const data = { ...(input?.data ?? {}) }
+    if (input?.amount != null) data._payment_amount = input.amount
+    if (input?.currency_code) data._currency_code = input.currency_code
+    return { data }
   }
 
   async getPaymentStatus(_input: any): Promise<any> {
@@ -84,9 +89,11 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     }
 
     const customer = ctx.customer
-    const amountCentavos = ctx.amount ?? 0
+    // Amount/currency may come from context OR from session data (saved by updatePayment)
+    const amountCentavos = (paymentSessionData._payment_amount as number) ?? ctx.amount ?? 0
+    const currencyCode = ((paymentSessionData._currency_code as string) ?? ctx.currency_code ?? "mxn").toUpperCase()
 
-    console.log(`[Openpay] amount=${amountCentavos} currency=${ctx.currency_code} customer=${customer?.email ?? "none"}`)
+    console.log(`[Openpay] amount=${amountCentavos} currency=${currencyCode} customer=${customer?.email ?? "none"}`)
 
     if (amountCentavos <= 0) {
       console.error(`[Openpay] INVALID AMOUNT: ${amountCentavos}`)
@@ -94,7 +101,6 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     }
 
     const amountPesos = amountCentavos / 100
-    const currencyCode = (ctx.currency_code ?? "mxn").toUpperCase()
     const deviceSessionId = paymentSessionData.device_session_id as string | undefined
 
     try {
