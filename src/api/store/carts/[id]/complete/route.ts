@@ -6,6 +6,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const cartId = req.params.id
   const body = req.body as Record<string, unknown>
   const openpayTokenId = body.openpay_token_id as string | undefined
+  const customerEmail = body.email as string | undefined
   // device_session_id is the Openpay anti-fraud device fingerprint.
   // Optional in dev/test but required by Openpay in production for fraud prevention.
   const deviceSessionId = body.device_session_id as string | undefined
@@ -72,7 +73,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         ...(session.data ?? {}),
         openpay_token_id: openpayTokenId,
         device_session_id: deviceSessionId,
-        _customer_email: cart.customer?.email ?? cart.email ?? "",
+        _customer_email: customerEmail ?? cart.customer?.email ?? cart.email ?? "",
         _customer_name: cart.customer?.first_name ?? "Customer",
         _customer_last_name: cart.customer?.last_name ?? "",
       },
