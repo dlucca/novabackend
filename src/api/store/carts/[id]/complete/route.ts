@@ -81,9 +81,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       input: { id: cartId },
     })
     res.json(result)
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Cart completion failed"
+  } catch (err: unknown) {
+    let message = "Cart completion failed"
+    if (err instanceof Error) {
+      message = err.message
+    } else if (typeof err === "object" && err !== null && "message" in err) {
+      message = String((err as Record<string, unknown>).message)
+    } else if (typeof err === "string") {
+      message = err
+    }
+    const logger = req.scope.resolve<{ error: (msg: string) => void }>("logger")
+    logger?.error?.(`completeCart error for cart ${cartId}: ${JSON.stringify(err)}`)
     res.status(422).json({ message })
   }
 }
