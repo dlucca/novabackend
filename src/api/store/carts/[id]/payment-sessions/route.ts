@@ -74,26 +74,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // 2b. Mark all line items as not requiring shipping (Novapatch handles fulfillment externally)
-  // and auto-add flat-rate shipping method if FLAT_SHIPPING_OPTION_ID is configured.
-  try {
-    const cartModule = req.scope.resolve<any>(Modules.CART)
-    const { data: lineItemsData } = await query.graph({
-      entity: "cart",
-      filters: { id: cartId },
-      fields: ["id", "items.id"],
-    })
-    const lineItems = (lineItemsData?.[0] as any)?.items ?? []
-    if (lineItems.length > 0) {
-      await cartModule.updateLineItems(
-        lineItems.map((item: any) => ({ id: item.id, requires_shipping: false }))
-      )
-    }
-  } catch (err) {
-    const logger = req.scope.resolve<{ warn: (msg: string) => void }>("logger")
-    logger?.warn?.(`Could not update requires_shipping: ${err instanceof Error ? err.message : String(err)}`)
-  }
-
+  // 2b. Auto-add flat-rate shipping method if FLAT_SHIPPING_OPTION_ID is configured.
   const flatShippingOptionId = process.env.FLAT_SHIPPING_OPTION_ID
   if (flatShippingOptionId) {
     const { data: cartWithShipping } = await query.graph({
