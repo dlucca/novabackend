@@ -20,8 +20,6 @@ import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import {
   createLocationFulfillmentSetWorkflow,
   createServiceZonesWorkflow,
-} from "@medusajs/core-flows"
-import {
   createShippingOptionsWorkflow,
   createShippingProfilesWorkflow,
 } from "@medusajs/core-flows"
@@ -60,7 +58,7 @@ export default async function setupShipping({ container }: ExecArgs) {
   } else {
     // ── 3. Create FulfillmentSet linked to stock location ─────────────────
     logger.info("Creating fulfillment set...")
-    const { result: fset } = await createLocationFulfillmentSetWorkflow(container).run({
+    await createLocationFulfillmentSetWorkflow(container).run({
       input: {
         location_id: locationId,
         fulfillment_set_data: {
@@ -69,7 +67,17 @@ export default async function setupShipping({ container }: ExecArgs) {
         },
       },
     })
-    fulfillmentSetId = (fset as any).id
+    // Workflow doesn't return the set — re-query to get the ID
+    const { data: refreshed } = await query.graph({
+      entity: "stock_location",
+      filters: { id: locationId },
+      fields: ["id", "fulfillment_sets.id"],
+    })
+    fulfillmentSetId = ((refreshed[0] as any)?.fulfillment_sets ?? [])[0]?.id
+    if (!fulfillmentSetId) {
+      logger.error("Fulfillment set was not created.")
+      return
+    }
     logger.info(`Fulfillment set created: ${fulfillmentSetId}`)
   }
 
@@ -139,7 +147,23 @@ export default async function setupShipping({ container }: ExecArgs) {
     return
   }
 
-  // ── 8. Create flat-rate shipping option ($85 MXN) ────────────────────────
+  // ── 8. Link fulfillment provider to stock location via remote link ─────────
+  logger.info(`Linking provider ${providerId} to stock location ${locationId}...`)
+  try {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+    await remoteLink.create([
+      {
+        [Modules.STOCK_LOCATION]: { stock_location_id: locationId },
+        [Modules.FULFILLMENT]: { fulfillment_provider_id: providerId },
+      },
+    ])
+    logger.info("Provider linked to stock location.")
+  } catch (e) {
+    // May already be linked — non-fatal
+    logger.warn(`Provider link (may already exist): ${(e as Error).message}`)
+  }
+
+  // ── 9. Create flat-rate shipping option ($85 MXN) ────────────────────────
   logger.info("Creating shipping option ($85 MXN flat rate)...")
   const { result: shippingOptions } = await createShippingOptionsWorkflow(container).run({
     input: [
