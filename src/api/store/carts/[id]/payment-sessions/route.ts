@@ -71,7 +71,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // 3. Initialize payment session for Openpay if not already present
+  // 3. Get payment collection amount (set by createPaymentCollectionForCartWorkflow)
+  let collectionAmount: number | undefined
+  let collectionCurrency: string = cart.currency_code ?? "mxn"
+  try {
+    const { data: collections } = await query.graph({
+      entity: "payment_collection",
+      filters: { id: paymentCollectionId },
+      fields: ["id", "amount", "currency_code"],
+    })
+    const collection = collections?.[0]
+    collectionAmount = collection?.amount
+    collectionCurrency = collection?.currency_code ?? collectionCurrency
+  } catch (_err) {
+    // continue with undefined — will fail below if so
+  }
+
+  if (collectionAmount === undefined || collectionAmount === null) {
+    res.status(422).json({ message: "Payment collection has no amount. Ensure cart has items." })
+    return
+  }
+
+  // 4. Initialize payment session for Openpay if not already present
   const existingSession = cart.payment_collection?.payment_sessions?.find(
     (s: any) => s.provider_id === "pp_openpay_openpay"
   )
@@ -81,8 +102,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       await paymentModuleService.createPaymentSession(paymentCollectionId, {
         provider_id: "pp_openpay_openpay",
         data: {},
-        currency_code: cart.currency_code ?? "mxn",
-        amount: cart.total ?? 0,
+        currency_code: collectionCurrency,
+        amount: collectionAmount,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create payment session"
