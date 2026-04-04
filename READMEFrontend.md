@@ -308,7 +308,33 @@ medusa.checkout.completeCart(cart_id, openpay_token_id)
 // POST /store/carts/:id/complete → { openpay_token_id }
 ```
 
-#### 4. Suscripciones (JWT requerido)
+#### 4. Cliente — Sync Clerk → Medusa (JWT requerido)
+
+```ts
+medusa.customer.sync(token)
+// GET /store/me/customer
+// Busca o crea el cliente Medusa usando el email del JWT de Clerk.
+// Devuelve { customer: { id, email, first_name, last_name } }
+// OBLIGATORIO llamar después del login si el carrito contiene suscripciones.
+```
+
+**Flujo requerido para compras de suscripción:**
+
+```
+1. Usuario hace login con Clerk
+2. Frontend → GET /store/me/customer (Bearer JWT)
+   → Devuelve customer_id de Medusa (crea el customer si no existe)
+3. Frontend guarda customer_id (state o localStorage)
+4. Frontend → POST /store/carts { region_id, customer_id }
+   → El carrito queda vinculado al cliente ✓
+5. La orden y la suscripción se crean bajo ese cliente ✓
+```
+
+> **¿Por qué es necesario?** El checkout usa Clerk para auth, pero los carritos son creados por el endpoint público de Medusa. Sin `customer_id` en el body, la orden queda como GUEST y la suscripción no se puede gestionar desde `/cuenta/suscripciones`.
+
+> **Compras one-time (guest):** No requieren este paso. El carrito se puede crear sin `customer_id`.
+
+#### 5. Suscripciones (JWT requerido)
 
 ```ts
 medusa.subscriptions.list(token)                             // GET /store/me/subscriptions
@@ -318,7 +344,7 @@ medusa.subscriptions.cancel(sub_id, token)                   // POST /store/me/s
 medusa.subscriptions.updateFrequency(sub_id, days, token)    // POST /store/me/subscriptions/:id/frequency
 ```
 
-#### 5. Métodos de pago (JWT requerido)
+#### 6. Métodos de pago (JWT requerido)
 
 ```ts
 medusa.paymentMethods.list(token)                           // GET /store/me/payment-methods
@@ -746,13 +772,15 @@ Componente de producto
 ```
 /checkout carga → CartContext.items
   ├─ ¿items tienen suscripción y no hay sesión? → <AuthGate> (Clerk SignIn)
+  │     └─ Tras login: medusa.customer.sync(jwt) → guardar customer_id
   └─ Formulario habilitado:
        ├─ Dirección: Google Places + COPOMEX
        ├─ Validación: Google Address Validation (no bloqueante)
        └─ Pago:
             ├─ getDeviceSessionId() → fingerprint
             ├─ tokenizeCard(cardData) → tok_XXX (Openpay, PCI-DSS)
-            ├─ medusa.cart.ensure(region_id) → cart_id
+            ├─ medusa.cart.ensure(region_id, customer_id?) → cart_id
+            │     ↑ customer_id solo si el usuario está logueado (suscripciones)
             ├─ medusa.cart.addOnceItem() / addSubscriptionItem() por cada ítem
             ├─ medusa.checkout.createPaymentSession(cart_id)
             └─ medusa.checkout.completeCart(cart_id, tok_XXX)
@@ -790,17 +818,25 @@ Acciones del usuario → pause/resume/cancel/updateFrequency(sub_id, jwt)
 
 ## Estado de la integración con Medusa
 
-El backend de Medusa aún no está disponible en producción. El frontend tiene un sistema de fallback:
+El backend está en producción en Railway (`novabackend-production-7977.up.railway.app`). El frontend tiene fallbacks para desarrollo local:
 
 - **Catálogo:** Usa `PRODUCT_META` de `lib/product-meta.ts` si Medusa no responde
 - **Carrito:** Estado local en localStorage; sincronización con Medusa en el momento del checkout
 - **Suscripciones:** Muestra datos mock en la página de cuenta si el backend no responde
 - **Pagos:** Openpay funciona en sandbox; en dev, si la tokenización falla se usa un token mock `"tok_dev_mock"`
 
-Cuando el backend esté listo, solo hay que:
-1. Actualizar `NEXT_PUBLIC_MEDUSA_BACKEND_URL` en `.env.local`
-2. Setear el `NEXT_PUBLIC_MEDUSA_REGION_ID` correcto (ID de la región México)
-3. Agregar `variantId` a los ítems del carrito cuando se carguen desde Medusa
+### Variables de entorno para producción
+
+```bash
+NEXT_PUBLIC_MEDUSA_BACKEND_URL=https://novabackend-production-7977.up.railway.app
+NEXT_PUBLIC_MEDUSA_REGION_ID=reg_01KNAF0276KEPK8HRMACPEQ80Y   # Región México (MXN)
+```
+
+### Pendientes de implementar en el frontend
+
+1. **`medusa.customer.sync(token)`** — Llamar después del login de Clerk si hay suscripciones en el carrito. Guardar el `customer_id` retornado y pasarlo en `medusa.cart.ensure()`.
+2. **`medusa.cart.ensure(region_id, customer_id?)`** — Actualizar para aceptar `customer_id` opcional y enviarlo en el body de `POST /store/carts`.
+3. **`variantId` en ítems del carrito** — Asignar el ID de variante de Medusa cuando los productos se carguen desde el backend.
 
 ---
 
