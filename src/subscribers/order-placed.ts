@@ -19,11 +19,9 @@ export default async function orderPlacedHandler({
     })
   } catch (err) {
     // Never throw from a subscriber — we don't want to affect the order on subscription failure
-    logger.error(
-      `[order-placed] Failed to create subscriptions for order ${orderId}: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    )
+    const msg = err instanceof Error ? err.message : JSON.stringify(err)
+    logger.error(`[order-placed] Failed to create subscriptions for order ${orderId}: ${msg}`)
+    console.error(`[order-placed] Full error:`, err)
   }
 }
 
