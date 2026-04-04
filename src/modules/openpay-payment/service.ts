@@ -73,14 +73,16 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
 
     const openpayTokenId = paymentSessionData.openpay_token_id as string | undefined
     if (!openpayTokenId) {
-      return { error: "Missing openpay_token_id in payment session data" }
+      return { error: "Missing openpay_token_id in payment session data", status: PaymentSessionStatus.ERROR }
     }
 
     const customer = ctx.customer
     const amountCentavos = ctx.amount ?? 0
 
+    this.logger_?.info(`[Openpay] authorizePayment: amount=${amountCentavos} token=${openpayTokenId?.slice(0, 10)}...`)
+
     if (amountCentavos <= 0) {
-      return { error: "Invalid payment amount: must be greater than 0" }
+      return { error: "Invalid payment amount: must be greater than 0", status: PaymentSessionStatus.ERROR }
     }
 
     const amountPesos = amountCentavos / 100
@@ -123,8 +125,8 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      this.logger_?.error(`Openpay authorizePayment failed: ${message}`)
-      return { error: message }
+      this.logger_?.error(`[Openpay] authorizePayment FAILED: ${message}`)
+      return { error: message, status: PaymentSessionStatus.ERROR }
     }
   }
 
