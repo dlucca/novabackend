@@ -11,7 +11,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     return
   }
 
-  const from = process.env.RESEND_FROM_EMAIL ?? "Novapatch <hola@novapatch.mx>"
+  const from = process.env.RESEND_FROM_EMAIL ?? "Novapatch <hola@novapatch.care>"
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",

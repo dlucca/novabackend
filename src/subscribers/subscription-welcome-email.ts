@@ -52,7 +52,7 @@ export default async function subscriptionWelcomeEmailHandler({
           <p>Productos suscritos:</p>
           <ul>${itemsList}</ul>
           <p>Te cobraremos automáticamente en la fecha de tu próximo ciclo. Puedes pausar, cancelar o cambiar la frecuencia desde tu cuenta.</p>
-          <p style="color:#6b7280;font-size:13px">Novapatch · Ciudad de México · <a href="https://novapatch.mx">novapatch.mx</a></p>
+          <p style="color:#6b7280;font-size:13px">Novapatch · Ciudad de México · <a href="https://novapatch.care">novapatch.care</a></p>
         </div>
       `,
     })

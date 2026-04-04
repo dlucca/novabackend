@@ -18,7 +18,7 @@ export default async function subscriptionPaymentFailedEmailHandler({
   const logger = container.resolve("logger")
 
   try {
-    const frontendUrl = process.env.STORE_CORS ?? "https://novapatch.mx"
+    const frontendUrl = process.env.STORE_CORS ?? "https://novapatch.care"
 
     await sendEmail({
       to: data.customer_email,
@@ -45,8 +45,8 @@ export default async function subscriptionPaymentFailedEmailHandler({
              style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:8px 0">
             Actualizar método de pago
           </a>
-          <p>¿Necesitas ayuda? Escríbenos a <a href="mailto:hola@novapatch.mx">hola@novapatch.mx</a>.</p>
-          <p style="color:#6b7280;font-size:13px">Novapatch · Ciudad de México · <a href="https://novapatch.mx">novapatch.mx</a></p>
+          <p>¿Necesitas ayuda? Escríbenos a <a href="mailto:hola@novapatch.care">hola@novapatch.care</a>.</p>
+          <p style="color:#6b7280;font-size:13px">Novapatch · Ciudad de México · <a href="https://novapatch.care">novapatch.care</a></p>
         </div>
       `,
     })

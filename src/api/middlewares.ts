@@ -24,7 +24,7 @@ const clerkMiddleware = async (
   if (!clerkSecretKey) {
     // In dev without Clerk configured, skip auth
     ;(req as any).clerk_user_id = "dev-user"
-    ;(req as any).clerk_email = "dev@novapatch.mx"
+    ;(req as any).clerk_email = "dev@novapatch.care"
     next()
     return
   }

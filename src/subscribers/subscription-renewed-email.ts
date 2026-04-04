@@ -59,8 +59,8 @@ export default async function subscriptionRenewedEmailHandler({
               <td style="padding:8px 0;text-align:right">${formattedDate}</td>
             </tr>
           </table>
-          <p>¿Tienes alguna duda? Escríbenos a <a href="mailto:hola@novapatch.mx">hola@novapatch.mx</a>.</p>
-          <p style="color:#6b7280;font-size:13px">Novapatch · Ciudad de México · <a href="https://novapatch.mx">novapatch.mx</a></p>
+          <p>¿Tienes alguna duda? Escríbenos a <a href="mailto:hola@novapatch.care">hola@novapatch.care</a>.</p>
+          <p style="color:#6b7280;font-size:13px">Novapatch · Ciudad de México · <a href="https://novapatch.care">novapatch.care</a></p>
         </div>
       `,
     })
