@@ -46,8 +46,10 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     return { data: { status: "pending" } }
   }
 
-  async updatePayment(_input: any): Promise<any> {
-    return { data: {} }
+  async updatePayment(input: any): Promise<any> {
+    // Pass through the incoming data so updatePaymentSession persists it
+    // (e.g. openpay_token_id, device_session_id injected by /complete route)
+    return { data: input?.data ?? {} }
   }
 
   async getPaymentStatus(_input: any): Promise<any> {
