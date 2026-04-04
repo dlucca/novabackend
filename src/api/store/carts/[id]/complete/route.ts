@@ -25,6 +25,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       filters: { id: cartId },
       fields: [
         "id",
+        "email",
+        "customer.id",
+        "customer.email",
+        "customer.first_name",
+        "customer.last_name",
         "payment_collection.id",
         "payment_collection.amount",
         "payment_collection.currency_code",
@@ -67,6 +72,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         ...(session.data ?? {}),
         openpay_token_id: openpayTokenId,
         device_session_id: deviceSessionId,
+        _customer_email: cart.customer?.email ?? cart.email ?? "",
+        _customer_name: cart.customer?.first_name ?? "Customer",
+        _customer_last_name: cart.customer?.last_name ?? "",
       },
     })
   } catch (err) {

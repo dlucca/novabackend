@@ -107,10 +107,19 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
       let openpayCustomerId = customer?.metadata?.openpay_customer_id as string | undefined
 
       if (!openpayCustomerId) {
+        const customerEmail = (paymentSessionData._customer_email as string) ?? customer?.email ?? ""
+        const customerName = (paymentSessionData._customer_name as string) ?? customer?.first_name ?? "Customer"
+        const customerLastName = (paymentSessionData._customer_last_name as string) ?? customer?.last_name ?? ""
+
+        if (!customerEmail) {
+          console.error("[Openpay] No customer email available")
+          return { error: "Customer email is required for payment", status: PaymentSessionStatus.ERROR, data: {} }
+        }
+
         const openpayCustomer = await this.client_.createCustomer({
-          name: customer?.first_name ?? "Customer",
-          last_name: customer?.last_name ?? "",
-          email: customer?.email ?? "",
+          name: customerName,
+          last_name: customerLastName,
+          email: customerEmail,
         })
         openpayCustomerId = openpayCustomer.id
       }
