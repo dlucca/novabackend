@@ -1,6 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { createPaymentCollectionForCartWorkflow } from "@medusajs/medusa/core-flows"
+import {
+  createPaymentCollectionForCartWorkflow,
+  addShippingMethodToCartWorkflow,
+} from "@medusajs/medusa/core-flows"
 
 /**
  * POST /store/carts/:id/payment-sessions
@@ -69,6 +72,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!paymentCollectionId) {
     res.status(422).json({ message: "Could not create payment collection for cart" })
     return
+  }
+
+  // 2b. Auto-add flat-rate shipping method if configured and not already present
+  const flatShippingOptionId = process.env.FLAT_SHIPPING_OPTION_ID
+  if (flatShippingOptionId) {
+    const { data: cartWithShipping } = await query.graph({
+      entity: "cart",
+      filters: { id: cartId },
+      fields: ["id", "shipping_methods.id", "shipping_methods.shipping_option_id"],
+    })
+    const hasShipping = (cartWithShipping?.[0] as any)?.shipping_methods?.length > 0
+    if (!hasShipping) {
+      try {
+        await addShippingMethodToCartWorkflow(req.scope).run({
+          input: { cart_id: cartId, options: [{ id: flatShippingOptionId }] },
+        })
+      } catch (err) {
+        // Log but don't block — completeCartWorkflow will catch missing shipping
+        const logger = req.scope.resolve<{ warn: (msg: string) => void }>("logger")
+        logger?.warn?.(`Auto-add shipping failed: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
   }
 
   // 3. Get payment collection amount (set by createPaymentCollectionForCartWorkflow)
