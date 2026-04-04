@@ -43,44 +43,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // 2. Create payment collection if it doesn't exist
-  if (!cart.payment_collection?.id) {
-    try {
-      await createPaymentCollectionForCartWorkflow(req.scope).run({
-        input: { cart_id: cartId },
-      })
-
-      // Refetch cart with payment collection
-      const { data: refreshed } = await query.graph({
-        entity: "cart",
-        filters: { id: cartId },
-        fields: [
-          "id",
-          "payment_collection.id",
-          "payment_collection.payment_sessions.id",
-        ],
-      })
-      cart = refreshed?.[0] ?? cart
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to create payment collection"
-      res.status(422).json({ message })
-      return
-    }
-  }
-
-  const paymentCollectionId = cart.payment_collection?.id
-  if (!paymentCollectionId) {
-    res.status(422).json({ message: "Could not create payment collection for cart" })
-    return
-  }
-
-  // 2b. Auto-add flat-rate shipping method if FLAT_SHIPPING_OPTION_ID is configured.
+  // 2. Auto-add flat-rate shipping method FIRST (before payment collection)
   const flatShippingOptionId = process.env.FLAT_SHIPPING_OPTION_ID
   if (flatShippingOptionId) {
     const { data: cartWithShipping } = await query.graph({
       entity: "cart",
       filters: { id: cartId },
-      fields: ["id", "shipping_methods.id", "shipping_methods.shipping_option_id"],
+      fields: ["id", "shipping_methods.id"],
     })
     const hasShipping = (cartWithShipping?.[0] as any)?.shipping_methods?.length > 0
     if (!hasShipping) {
@@ -89,13 +58,41 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           input: { cart_id: cartId, options: [{ id: flatShippingOptionId }] },
         })
       } catch (err) {
-        const logger = req.scope.resolve<{ warn: (msg: string) => void }>("logger")
-        logger?.warn?.(`Auto-add shipping failed: ${err instanceof Error ? err.message : String(err)}`)
+        console.warn(`[PaymentSessions] Auto-add shipping failed: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
   }
 
-  // 3. Get payment collection amount (set by createPaymentCollectionForCartWorkflow)
+  // 3. Always (re)create payment collection so it captures the current cart total
+  try {
+    await createPaymentCollectionForCartWorkflow(req.scope).run({
+      input: { cart_id: cartId },
+    })
+    const { data: refreshed } = await query.graph({
+      entity: "cart",
+      filters: { id: cartId },
+      fields: [
+        "id",
+        "total",
+        "payment_collection.id",
+        "payment_collection.payment_sessions.id",
+      ],
+    })
+    cart = refreshed?.[0] ?? cart
+    console.log(`[PaymentSessions] cart.total=${(cart as any).total} paymentCollection=${cart.payment_collection?.id}`)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to create payment collection"
+    res.status(422).json({ message })
+    return
+  }
+
+  const paymentCollectionId = cart.payment_collection?.id
+  if (!paymentCollectionId) {
+    res.status(422).json({ message: "Could not create payment collection for cart" })
+    return
+  }
+
+  // 4. Get payment collection amount
   let collectionAmount: number | undefined
   let collectionCurrency: string = cart.currency_code ?? "mxn"
   try {
