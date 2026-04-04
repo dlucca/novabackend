@@ -16,7 +16,7 @@ import {
 
 const PRODUCTS = ["energy", "sleep", "glow", "shield", "zen", "woman"] as const
 
-const BASE_PRICE = 39900 // $399.00 MXN in centavos
+const BASE_PRICE = 75000 // $750.00 MXN in centavos
 
 const PRICE_TIERS = [
   {
