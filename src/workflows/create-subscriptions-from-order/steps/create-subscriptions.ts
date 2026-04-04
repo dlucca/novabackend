@@ -15,10 +15,10 @@ type CompensationData = {
 export const createSubscriptionsStep = createStep(
   "create-subscriptions-step",
   async (input: CreateSubscriptionsInput, { container }) => {
-    const orderService = container.resolve(Modules.ORDER)
     const subscriptionService = container.resolve(SUBSCRIPTION_MODULE)
     const customerService = container.resolve(Modules.CUSTOMER)
     const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
     const logger = container.resolve("logger")
 
     // Idempotency check: if subscriptions already exist for this order, return early
@@ -30,10 +30,29 @@ export const createSubscriptionsStep = createStep(
       )
     }
 
-    // Retrieve order with items and payment data
-    const order = await orderService.retrieveOrder(input.order_id, {
-      relations: ["items", "items.variant", "payment_collections", "payment_collections.payments"],
+    // Retrieve order with items and payment data via query.graph
+    // (orderService.retrieveOrder with dot-notation relations fails in MikroORM)
+    const { data: orders } = await query.graph({
+      entity: "order",
+      filters: { id: input.order_id },
+      fields: [
+        "id",
+        "customer_id",
+        "items.id",
+        "items.title",
+        "items.variant_id",
+        "items.metadata",
+        "payment_collections.payments.data",
+      ],
     })
+    const order = orders[0] as any
+    if (!order) {
+      logger.warn(`[create-subscriptions-step] Order ${input.order_id} not found`)
+      return new StepResponse(
+        { subscription_ids: [] },
+        { subscriptionIds: [], customerLinks: [], variantLinks: [] }
+      )
+    }
 
     const subscriptionItems = (order.items ?? []).filter(
       (item: any) => item.metadata?.is_subscription === true
@@ -90,7 +109,7 @@ export const createSubscriptionsStep = createStep(
       }
 
       // Link Subscription ↔ ProductVariant (stored link defined in src/links/subscription-product-variant.ts)
-      const variantId = (item as any).variant?.id ?? (item as any).variant_id
+      const variantId = item.variant_id
       if (variantId) {
         await remoteLink.create([
           {
@@ -103,7 +122,7 @@ export const createSubscriptionsStep = createStep(
     }
 
     // Persist the Openpay customer ID on the Medusa customer so future billing works
-    const openpayCustomerId = (order as any).payment_collections?.[0]
+    const openpayCustomerId = order.payment_collections?.[0]
       ?.payments?.[0]?.data?.openpay_customer_id as string | undefined
 
     if (order.customer_id && !openpayCustomerId) {
