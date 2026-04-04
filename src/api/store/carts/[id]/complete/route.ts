@@ -54,14 +54,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Inject the Openpay token into the payment session data
   const paymentModuleService = req.scope.resolve(Modules.PAYMENT)
-  await (paymentModuleService as any).updatePaymentSession({
-    id: session.id,
-    data: {
-      ...(session.data ?? {}),
-      openpay_token_id: openpayTokenId,
-      device_session_id: deviceSessionId,
-    },
-  })
+  try {
+    await (paymentModuleService as any).updatePaymentSession({
+      id: session.id,
+      data: {
+        ...(session.data ?? {}),
+        openpay_token_id: openpayTokenId,
+        device_session_id: deviceSessionId,
+      },
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to update payment session"
+    res.status(422).json({ message })
+    return
+  }
 
   // Run the standard Medusa complete cart workflow (authorizePayment is called inside)
   try {
