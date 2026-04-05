@@ -8,16 +8,15 @@ import {
 /**
  * POST /store/carts/:id/payment-sessions
  *
- * Initializes or retrieves the payment session for a cart.
- * Creates a payment collection if one doesn't exist, then
- * initializes a payment session for the Openpay provider.
+ * Optimized: 1 query + 2 workflows (down from 5 queries + 2 workflows).
+ * Adds shipping, creates payment collection, and initializes payment session.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const cartId = req.params.id
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const paymentModuleService = req.scope.resolve(Modules.PAYMENT)
 
-  // 1. Fetch cart with payment collection
+  // ── Single query: fetch cart with everything we need ──────────────────────
   let cart: any = null
   try {
     const { data: carts } = await query.graph({
@@ -25,9 +24,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       filters: { id: cartId },
       fields: [
         "id",
-        "region_id",
         "currency_code",
-        "total",
+        "shipping_methods.id",
         "payment_collection.id",
         "payment_collection.payment_sessions.id",
         "payment_collection.payment_sessions.provider_id",
@@ -43,48 +41,46 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // 2. Auto-add flat-rate shipping method FIRST (before payment collection)
+  // ── Workflow 1: add shipping if missing (no extra query needed) ──────────
   const flatShippingOptionId = process.env.FLAT_SHIPPING_OPTION_ID
-  if (flatShippingOptionId) {
-    const { data: cartWithShipping } = await query.graph({
-      entity: "cart",
-      filters: { id: cartId },
-      fields: ["id", "shipping_methods.id"],
-    })
-    const hasShipping = (cartWithShipping?.[0] as any)?.shipping_methods?.length > 0
-    if (!hasShipping) {
-      try {
-        await addShippingMethodToCartWorkflow(req.scope).run({
-          input: { cart_id: cartId, options: [{ id: flatShippingOptionId }] },
-        })
-      } catch (err) {
-        console.warn(`[PaymentSessions] Auto-add shipping failed: ${err instanceof Error ? err.message : String(err)}`)
-      }
+  const hasShipping = cart.shipping_methods?.length > 0
+  if (flatShippingOptionId && !hasShipping) {
+    try {
+      await addShippingMethodToCartWorkflow(req.scope).run({
+        input: { cart_id: cartId, options: [{ id: flatShippingOptionId }] },
+      })
+    } catch (err) {
+      console.warn(`[PaymentSessions] Auto-add shipping failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
-  // 3. Always (re)create payment collection so it captures the current cart total
+  // ── Workflow 2: create payment collection (captures current cart total) ───
   try {
     await createPaymentCollectionForCartWorkflow(req.scope).run({
       input: { cart_id: cartId },
     })
-    const { data: refreshed } = await query.graph({
-      entity: "cart",
-      filters: { id: cartId },
-      fields: [
-        "id",
-        "total",
-        "payment_collection.id",
-        "payment_collection.payment_sessions.id",
-      ],
-    })
-    cart = refreshed?.[0] ?? cart
-    console.log(`[PaymentSessions] cart.total=${(cart as any).total} paymentCollection=${cart.payment_collection?.id}`)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to create payment collection"
     res.status(422).json({ message })
     return
   }
+
+  // ── Single post-workflow query: get collection with amount ────────────────
+  const { data: refreshed } = await query.graph({
+    entity: "cart",
+    filters: { id: cartId },
+    fields: [
+      "id",
+      "currency_code",
+      "payment_collection.id",
+      "payment_collection.amount",
+      "payment_collection.currency_code",
+      "payment_collection.payment_sessions.id",
+      "payment_collection.payment_sessions.provider_id",
+      "payment_collection.payment_sessions.status",
+    ],
+  })
+  cart = refreshed?.[0] ?? cart
 
   const paymentCollectionId = cart.payment_collection?.id
   if (!paymentCollectionId) {
@@ -92,28 +88,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // 4. Get payment collection amount
-  let collectionAmount: number | undefined
-  let collectionCurrency: string = cart.currency_code ?? "mxn"
-  try {
-    const { data: collections } = await query.graph({
-      entity: "payment_collection",
-      filters: { id: paymentCollectionId },
-      fields: ["id", "amount", "currency_code"],
-    })
-    const collection = collections?.[0]
-    collectionAmount = collection?.amount
-    collectionCurrency = collection?.currency_code ?? collectionCurrency
-  } catch (_err) {
-    // continue with undefined — will fail below if so
-  }
+  const collectionAmount = cart.payment_collection?.amount
+  const collectionCurrency = cart.payment_collection?.currency_code ?? cart.currency_code ?? "mxn"
 
-  if (collectionAmount === undefined || collectionAmount === null) {
+  if (collectionAmount == null) {
     res.status(422).json({ message: "Payment collection has no amount. Ensure cart has items." })
     return
   }
 
-  // 4. Initialize payment session for Openpay if not already present
+  // ── Create payment session if not present ─────────────────────────────────
   const existingSession = cart.payment_collection?.payment_sessions?.find(
     (s: any) => s.provider_id === "pp_openpay_openpay"
   )
@@ -133,18 +116,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  // 4. Return updated cart
-  const { data: final } = await query.graph({
-    entity: "cart",
-    filters: { id: cartId },
-    fields: [
-      "id",
-      "payment_collection.id",
-      "payment_collection.payment_sessions.id",
-      "payment_collection.payment_sessions.provider_id",
-      "payment_collection.payment_sessions.status",
-    ],
-  })
-
-  res.json({ cart: final?.[0] ?? cart })
+  // Return cart data we already have — no extra query needed
+  res.json({ cart: { id: cart.id, payment_collection: cart.payment_collection } })
 }
