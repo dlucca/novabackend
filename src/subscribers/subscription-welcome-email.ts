@@ -1,8 +1,9 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { Modules } from "@medusajs/framework/utils"
-import { sendEmail } from "../lib/resend"
+import * as React from "react"
+import { sendEmail, renderEmail } from "../lib/resend"
+import { SubscriptionWelcome } from "../emails/SubscriptionWelcome"
 
-// Sends a welcome email when an order containing subscription items is placed.
 export default async function subscriptionWelcomeEmailHandler({
   event,
   container,
@@ -14,7 +15,7 @@ export default async function subscriptionWelcomeEmailHandler({
     const orderService = container.resolve(Modules.ORDER)
     const order = await orderService.retrieveOrder(orderId, {
       relations: ["items"],
-    })
+    }) as any
 
     const subscriptionItems = (order.items ?? []).filter(
       (item: any) => item.metadata?.is_subscription === true
@@ -32,29 +33,21 @@ export default async function subscriptionWelcomeEmailHandler({
 
     if (!email) return
 
-    const intervalLabel = (days: number) =>
-      days === 30 ? "mensual" : days === 60 ? "bimestral" : "trimestral"
-
-    const itemsList = subscriptionItems
-      .map((item: any) => {
-        const interval = Number(item.metadata?.interval_days ?? 30)
-        return `<li><strong>${item.title}</strong> — suscripción ${intervalLabel(interval)}</li>`
+    const html = await renderEmail(
+      React.createElement(SubscriptionWelcome, {
+        name,
+        orderId: order.display_id ?? orderId,
+        subscriptionItems: subscriptionItems.map((item: any) => ({
+          title: item.title ?? "",
+          interval_days: Number(item.metadata?.interval_days ?? 30),
+        })),
       })
-      .join("")
+    )
 
     await sendEmail({
       to: email,
       subject: "¡Bienvenido a Novapatch! Tu suscripción está activa",
-      html: `
-        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a">
-          <h2 style="color:#7c3aed">¡Hola, ${name}!</h2>
-          <p>Tu pedido <strong>#${order.display_id ?? orderId}</strong> fue confirmado y tu suscripción ya está activa.</p>
-          <p>Productos suscritos:</p>
-          <ul>${itemsList}</ul>
-          <p>Te cobraremos automáticamente en la fecha de tu próximo ciclo. Puedes pausar, cancelar o cambiar la frecuencia desde tu cuenta.</p>
-          <p style="color:#6b7280;font-size:13px">Novapatch · Ciudad de México · <a href="https://novapatch.care">novapatch.care</a></p>
-        </div>
-      `,
+      html,
     })
 
     logger.info(`[subscription-welcome] Email enviado a ${email} para orden ${orderId}`)
