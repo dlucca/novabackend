@@ -1,7 +1,14 @@
+import * as React from "react"
+import { render } from "@react-email/components"
+
 type SendEmailParams = {
   to: string
   subject: string
   html: string
+}
+
+export async function renderEmail(element: React.ReactElement): Promise<string> {
+  return render(element)
 }
 
 export async function sendEmail(params: SendEmailParams): Promise<void> {
