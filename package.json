@@ -26,7 +26,8 @@
     "@medusajs/admin-sdk": "2.13.1",
     "@medusajs/cli": "2.13.1",
     "@medusajs/framework": "2.13.1",
-    "@medusajs/medusa": "2.13.1"
+    "@medusajs/medusa": "2.13.1",
+    "@react-email/components": "^1.0.11"
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.13.1",
