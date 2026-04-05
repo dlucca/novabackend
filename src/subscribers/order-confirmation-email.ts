@@ -1,5 +1,5 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { Modules } from "@medusajs/framework/utils"
 import { sendEmail } from "../lib/resend"
 
 /**
@@ -14,33 +14,12 @@ export default async function orderConfirmationEmailHandler({
   const logger = container.resolve("logger")
 
   try {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const orderService = container.resolve(Modules.ORDER)
 
-    const { data: orders } = await query.graph({
-      entity: "order",
-      filters: { id: orderId },
-      fields: [
-        "id",
-        "display_id",
-        "email",
-        "total",
-        "currency_code",
-        "items.id",
-        "items.title",
-        "items.quantity",
-        "items.unit_price",
-        "items.metadata",
-        "shipping_address.address_1",
-        "shipping_address.address_2",
-        "shipping_address.city",
-        "shipping_address.province",
-        "shipping_address.postal_code",
-        "shipping_address.first_name",
-        "shipping_address.last_name",
-      ],
-    })
+    const order = await orderService.retrieveOrder(orderId, {
+      relations: ["items", "shipping_address"],
+    }) as any
 
-    const order = orders[0] as any
     if (!order) return
 
     const email = order.email
@@ -61,14 +40,22 @@ export default async function orderConfirmationEmailHandler({
       }).format(n)
 
     // Build items list
-    const itemsHtml = (order.items ?? [])
+    const items = order.items ?? []
+    const itemsTotal = items.reduce(
+      (sum: number, item: any) => sum + (item.unit_price ?? 0) * (item.quantity ?? 1),
+      0
+    )
+
+    const itemsHtml = items
       .map((item: any) => {
         const isSub = item.metadata?.is_subscription === true
         const badge = isSub ? " 🔄 Suscripción" : ""
+        const qty = item.quantity ?? 1
+        const price = item.unit_price ?? 0
         return `<tr>
           <td style="padding:8px 0;border-bottom:1px solid #eee">${item.title}${badge}</td>
-          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:center">${item.quantity}</td>
-          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right">${fmt(item.unit_price * item.quantity)}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:center">${qty}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right">${fmt(price * qty)}</td>
         </tr>`
       })
       .join("")
@@ -100,7 +87,7 @@ export default async function orderConfirmationEmailHandler({
             <tfoot>
               <tr>
                 <td colspan="2" style="padding:12px 0;font-weight:bold;text-align:right">Total:</td>
-                <td style="padding:12px 0;font-weight:bold;text-align:right;color:#005088">${fmt(order.total)}</td>
+                <td style="padding:12px 0;font-weight:bold;text-align:right;color:#005088">${fmt(itemsTotal)}</td>
               </tr>
             </tfoot>
           </table>
