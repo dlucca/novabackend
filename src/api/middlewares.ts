@@ -4,7 +4,7 @@ import {
   MedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { verifyToken } from "@clerk/backend"
+import { verifyToken, createClerkClient } from "@clerk/backend"
 
 const clerkMiddleware = async (
   req: MedusaRequest,
@@ -31,8 +31,17 @@ const clerkMiddleware = async (
 
   try {
     const payload = await verifyToken(token, { secretKey: clerkSecretKey })
-    ;(req as any).clerk_user_id = payload.sub
-    ;(req as any).clerk_email = (payload as any).email || null
+    const userId = payload.sub
+
+    // The Clerk session JWT does not include email by default — fetch it via API
+    const clerk = createClerkClient({ secretKey: clerkSecretKey })
+    const user = await clerk.users.getUser(userId)
+    const email =
+      user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId)
+        ?.emailAddress ?? null
+
+    ;(req as any).clerk_user_id = userId
+    ;(req as any).clerk_email = email
     next()
   } catch (error) {
     res.status(401).json({ message: "Invalid or expired token" })
