@@ -14,9 +14,12 @@ import { mapAddress, buildShipmentRequest } from "../../../lib/envia-mappers"
 
 // Carriers to quote in parallel. The Envia API requires one carrier per request.
 // Validated against the Envia sandbox — add/remove based on your account's active carriers.
-// Note: "estafeta" is excluded because its /ship/generate/ endpoint rejects all MX state
-// codes with "State code not founded" (sandbox bug — re-add when resolved in production).
-const CARRIERS_TO_QUOTE = ["dhl", "fedex", "redpack", "ups"]
+//
+// Note: "estafeta" fails /ship/generate/ in the sandbox with "State code not founded"
+// for all MX state codes. It may work correctly in production — the fallback loop
+// handles the failure gracefully (falls back to the next cheapest carrier) so there
+// is no downside to keeping it in the list.
+const CARRIERS_TO_QUOTE = ["dhl", "fedex", "estafeta", "redpack", "ups"]
 
 type CompensationData = {
   shipmentId: number
