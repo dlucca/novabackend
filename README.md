@@ -14,6 +14,7 @@ Motor de e-commerce headless para la plataforma de parches vitamínicos por susc
 | API | REST headless — `http://localhost:9000` |
 | Auth | Clerk (JWT Bearer en rutas `/store/me/*`) |
 | Pagos | Openpay (México — tokenización server-to-server) |
+| Envíos | Envia.com (cotización multi-carrier, guías, tracking) |
 | Email transaccional | Resend + React Email (Phase 3) |
 
 ---
@@ -53,6 +54,24 @@ CLERK_SECRET_KEY=sk_test_...
 OPENPAY_MERCHANT_ID=
 OPENPAY_PRIVATE_KEY=
 OPENPAY_SANDBOX=true     # false en producción
+
+# ── Envia.com (Envíos) ─────────────────────────────────────────────────────────
+ENVIA_API_TOKEN=          # Token de API (sandbox o producción)
+ENVIA_API_URL=https://api-test.envia.com          # https://api.envia.com en prod
+ENVIA_QUERIES_URL=https://queries-test.envia.com  # https://queries.envia.com en prod
+
+# Carriers a cotizar (separados por coma). Sin esta variable usa los defaults.
+# Actualizar en producción según los carriers activos en tu cuenta de Envia.
+# ENVIA_CARRIERS=noventa9minutos,ups,dhl,fedex,estafeta,redpack,paquetexpress
+
+# ── Bodega origen (para guías Envia) ──────────────────────────────────────────
+MEDUSA_WAREHOUSE_LOCATION_ID=   # ID del stock location en Medusa Admin
+WAREHOUSE_PHONE=+525500000000
+WAREHOUSE_STREET=Camino Real a San Lorenzo
+WAREHOUSE_NUMBER=263
+WAREHOUSE_CITY=Iztapalapa
+WAREHOUSE_STATE=DIF
+WAREHOUSE_POSTAL_CODE=09360
 ```
 
 ---
@@ -75,6 +94,9 @@ npx medusa db:generate subscriptionModuleService  # Genera nueva migración
 npx medusa exec ./src/scripts/seed-novapatch.ts   # Carga 6 productos con 4 tiers de precio
 npx medusa user -e admin@novapatch.mx -p novapatch123  # Crea usuario admin
 
+# Envia
+npx medusa exec ./src/scripts/register-envia-webhook.ts  # Registra webhook de tracking en Envia
+
 # Tests
 npm run test:unit               # Tests unitarios (src/**/__tests__/**/*.unit.spec.ts)
 npm run test:integration:http   # Tests de integración HTTP (integration-tests/http/)
@@ -86,6 +108,11 @@ npm run test:integration:http   # Tests de integración HTTP (integration-tests/
 
 ```
 src/
+├── config/
+│   └── warehouse.ts                           # Dirección de bodega origen (lee de env vars)
+├── lib/
+│   ├── envia-client.ts                        # HTTP wrapper Envia: tipos, retry, EnviaClient
+│   └── envia-mappers.ts                       # Mapea Medusa Address → EnviaAddress, construye paquetes
 ├── modules/
 │   ├── subscription/                          # Módulo custom: Subscription + SubscriptionOrder
 │   │   ├── models/subscription.ts             # DML: status, interval_days, next_billing_date
@@ -102,15 +129,25 @@ src/
 │   ├── subscription-order.ts                 # Subscription → Order (readOnly)
 │   └── subscription-order-order.ts           # SubscriptionOrder → Order (readOnly)
 ├── workflows/
+│   ├── envia-create-fulfillment/             # Cotiza carriers, genera guía, crea fulfillment en Medusa
+│   │   ├── index.ts                          # Workflow principal (3 steps encadenados)
+│   │   └── steps/
+│   │       ├── fetch-order.ts                # Step 1: obtiene la orden con dirección e items
+│   │       ├── generate-label.ts             # Step 2: cotiza en paralelo, genera guía con fallback
+│   │       │                                 #   ↳ compensation: cancela la guía en Envia si falla step 3
+│   │       └── create-fulfillment.ts         # Step 3: registra el fulfillment en Medusa con tracking
 │   ├── create-subscriptions-from-order/      # Crea Subscriptions al completar una orden
 │   ├── pause-subscription/                   # active → paused
 │   ├── resume-subscription/                  # paused → active (recalcula next_billing_date)
 │   ├── cancel-subscription/                  # any → canceled
 │   └── update-subscription-frequency/        # Actualiza interval_days (30|60|90)
 ├── subscribers/
-│   └── order-placed.ts                       # Escucha order.placed → ejecuta workflow
+│   ├── envia-fulfillment.ts                  # order.payment_captured → dispara envia-create-fulfillment
+│   └── order-placed.ts                       # order.placed → crea Subscriptions
 ├── api/
 │   ├── middlewares.ts                         # Clerk JWT en /store/me/*
+│   ├── webhooks/
+│   │   └── envia/route.ts                    # POST /webhooks/envia — recibe eventos de tracking
 │   └── store/
 │       ├── carts/[id]/complete/route.ts       # POST: inyecta openpay_token_id y completa carrito
 │       └── me/
@@ -121,10 +158,11 @@ src/
 │           ├── subscriptions/[id]/frequency/  # POST: cambiar frecuencia
 │           ├── payment-methods/route.ts       # GET: tarjetas del vault Openpay
 │           └── payment-methods/default/       # POST: cambiar tarjeta por defecto
-├── scripts/
-│   └── seed-novapatch.ts                     # Seed: región MX, 6 productos, 4 precios c/u
-└── __tests__/
-    └── workflows/                            # Tests unitarios de lógica de workflows
+└── scripts/
+    ├── seed-novapatch.ts                      # Seed: región MX, 6 productos, 4 precios c/u
+    ├── register-envia-webhook.ts              # Registra webhook de tracking en Envia (correr 1 vez)
+    ├── test-envia-subscriber.ts              # Prueba el workflow de fulfillment con una orden real
+    └── debug-envia-generate.ts               # Muestra el payload completo que se envía a Envia
 ```
 
 ---
@@ -171,6 +209,9 @@ src/
 | LineItem | `metadata.is_subscription` | `true` \| `false` |
 | LineItem | `metadata.interval_days` | `30` \| `60` \| `90` |
 | LineItem | `metadata.discount_percentage` | `20` \| `15` \| `10` |
+| Fulfillment | `metadata.envia_shipment_id` | ID del envío en Envia |
+| Fulfillment | `metadata.carrier` | Carrier seleccionado (ej. `dhl`) |
+| Fulfillment | `metadata.envia_label_url` | URL del PDF de guía |
 
 ---
 
@@ -222,6 +263,41 @@ GET  /store/me/payment-methods              Lista tarjetas del vault Openpay
 POST /store/me/payment-methods/default      Cambiar tarjeta por defecto { openpay_token_id }
 ```
 
+### Webhooks (público, autenticado por hash)
+
+```
+POST /webhooks/envia                    Recibe eventos de tracking de Envia
+```
+
+---
+
+## Flujo de envíos (Envia.com)
+
+Al capturarse el pago de una orden (`order.payment_captured`), el workflow `envia-create-fulfillment` se ejecuta automáticamente:
+
+```
+1. Cotiza todos los carriers en paralelo (ENVIA_CARRIERS o defaults)
+2. Ordena por precio ascendente
+3. Intenta generar guía con el más barato
+   └─ Si falla (carrier no soporta la ruta), prueba el siguiente → fallback automático
+4. Registra el fulfillment en Medusa con tracking number y URL de guía
+   └─ Si este paso falla, el workflow cancela automáticamente la guía en Envia (compensation)
+```
+
+**Carriers validados en sandbox (origen Iztapalapa CDMX):**
+
+| Carrier | Precio aprox. | Servicio |
+|---------|--------------|---------|
+| noventa9minutos | ~9 MXN | same_day (solo CDMX) |
+| ups | ~12 MXN | saver |
+| estafeta | ~229 MXN | express |
+| dhl | ~305 MXN | ground |
+| fedex | ~565 MXN | ground |
+
+> Los precios de sandbox no reflejan tarifas reales. Validar en producción.
+
+**Configurar carriers en producción:** agrega `ENVIA_CARRIERS=dhl,fedex,estafeta,redpack` en Railway con los carriers activos en tu cuenta. No requiere redeploy.
+
 ---
 
 ## Flujo de pago (triangular PCI-DSS)
@@ -270,17 +346,29 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
 NODE_ENV=production
 OPENPAY_SANDBOX=false
+ENVIA_API_URL=https://api.envia.com
+ENVIA_QUERIES_URL=https://queries.envia.com
+ENVIA_API_TOKEN=<token-de-produccion>
+ENVIA_CARRIERS=noventa9minutos,ups,dhl,fedex,estafeta,redpack
+MEDUSA_WAREHOUSE_LOCATION_ID=<id-del-stock-location>
 ```
+
+**Post-deploy (una sola vez):**
+```bash
+npx medusa exec ./src/scripts/register-envia-webhook.ts
+```
+Registra el webhook de tracking en Envia apuntando a `https://<tu-dominio>/webhooks/envia`.
 
 ---
 
 ## Integraciones
 
-| Servicio | Rol |
-|----------|-----|
-| **Openpay** | Vault de tarjetas, tokenización, cobros server-to-server (México) |
-| **Clerk** | Validación de JWT en rutas protegidas, contexto de cliente |
-| **Resend** | Emails transaccionales vía Event Bus (Phase 3) |
+| Servicio | Rol | Estado |
+|----------|-----|--------|
+| **Openpay** | Vault de tarjetas, tokenización, cobros server-to-server (México) | ✅ Implementado |
+| **Clerk** | Validación de JWT en rutas protegidas, contexto de cliente | ✅ Implementado |
+| **Envia.com** | Cotización multi-carrier, generación de guías, tracking por webhook | ✅ Implementado |
+| **Resend** | Emails transaccionales vía Event Bus | Phase 3 |
 
 ---
 
@@ -292,6 +380,15 @@ OPENPAY_SANDBOX=false
 - [x] Subscriber `order.placed` → crea `Subscription` por cada ítem de suscripción
 - [x] Rutas de gestión de suscripciones (`/store/me/subscriptions/*`)
 - [x] Rutas de métodos de pago (`/store/me/payment-methods`)
+
+### Phase 2.5 — Envíos con Envia.com ✅
+- [x] `EnviaClient`: HTTP wrapper con retry, detección de errores de aplicación (`meta:"error"`)
+- [x] Mappers: `mapAddress()` con normalización de estados MX, `buildPackages()`, `splitStreetNumber()`
+- [x] Workflow `envia-create-fulfillment` con 3 steps y compensation automática (cancela guía si Medusa falla)
+- [x] Cotización en paralelo con `Promise.allSettled` + fallback de carrier en generate
+- [x] Carrier list configurable via `ENVIA_CARRIERS` sin redeploy
+- [x] Webhook `POST /webhooks/envia` con dedup Redis para eventos de tracking
+- [x] Script de registro de webhook (`register-envia-webhook.ts`)
 
 ### Phase 3 — Billing recurrente y notificaciones
 - [ ] Cron job diario `ProcessDailySubscriptions` (Redis)
