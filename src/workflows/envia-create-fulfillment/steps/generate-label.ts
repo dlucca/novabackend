@@ -13,13 +13,18 @@ import { EnviaClient, type EnviaGenerateResult, type EnviaRateResult } from "../
 import { mapAddress, buildShipmentRequest } from "../../../lib/envia-mappers"
 
 // Carriers to quote in parallel. The Envia API requires one carrier per request.
-// Validated against the Envia sandbox — add/remove based on your account's active carriers.
+// Validated against the Envia sandbox (2026-04) — update as your Envia account changes.
 //
-// Note: "estafeta" fails /ship/generate/ in the sandbox with "State code not founded"
-// for all MX state codes. It may work correctly in production — the fallback loop
-// handles the failure gracefully (falls back to the next cheapest carrier) so there
-// is no downside to keeping it in the list.
-const CARRIERS_TO_QUOTE = ["dhl", "fedex", "estafeta", "redpack", "ups"]
+// Sandbox results (origin: Iztapalapa DIF → destination: Miguel Hidalgo DIF):
+//   noventa9minutos  9.28 MXN  local_same_day   (same-day CDMX only — confirm coverage per order)
+//   ups             11.60 MXN  saver             (unusually cheap in sandbox; verify in prod)
+//   estafeta       228.52 MXN  express           (fails /ship/generate/ in sandbox — sandbox bug)
+//   dhl            304.57 MXN  ground
+//   fedex          564.92 MXN  ground
+//
+// Not included: redpack (not active), paquetexpress (requires colonia field),
+//   ampm/sendex/jtexpress (no coverage), borzo/mensajeros_urbanos (not supported)
+const CARRIERS_TO_QUOTE = ["noventa9minutos", "ups", "dhl", "fedex", "estafeta"]
 
 type CompensationData = {
   shipmentId: number
