@@ -77,10 +77,14 @@ export default async function enviaFulfillmentHandler({
 
     // 4. Create a Medusa fulfillment for all items in the order
     const locationId = process.env.MEDUSA_WAREHOUSE_LOCATION_ID
+    if (!locationId) {
+      logger.error(`[envia-fulfillment] MEDUSA_WAREHOUSE_LOCATION_ID is not set — cannot create fulfillment for order ${orderId}`)
+      return
+    }
     await createOrderFulfillmentWorkflow(container).run({
       input: {
         order_id: orderId,
-        location_id: locationId ?? "",
+        location_id: locationId,
         items: (order.items ?? []).map((item: any) => ({
           id: item.id,
           quantity: item.quantity,
