@@ -55,7 +55,7 @@ export type EnviaGenerateResult = {
 export function isRetryable(err: unknown): boolean {
   if (!(err instanceof Error)) return false
   const statusCode = (err as Error & { statusCode?: number }).statusCode
-  if (statusCode !== undefined && statusCode >= 500) return true
+  if (statusCode !== undefined && (statusCode >= 500 || statusCode === 429)) return true
   const msg = err.message.toLowerCase()
   return msg.includes("timeout") || msg.includes("econnreset") || msg.includes("etimedout")
 }
@@ -123,19 +123,17 @@ export class EnviaClient {
    * and compare results to find the cheapest.
    */
   async getRate(req: EnviaShipmentRequest): Promise<EnviaRateResult | null> {
-    try {
-      const results = await withRetry(() => this.post<EnviaRateResult[]>("/ship/rate/", req))
-      return results?.[0] ?? null
-    } catch {
-      return null
-    }
+    const results = await withRetry(() => this.post<EnviaRateResult[]>("/ship/rate/", req))
+    return results?.[0] ?? null
   }
 
   /** Generates a shipping label using the specified carrier + service. */
   async generateShipment(req: EnviaShipmentRequest): Promise<EnviaGenerateResult> {
     return withRetry(async () => {
       const results = await this.post<EnviaGenerateResult[]>("/ship/generate/", req)
-      return results[0]
+      const result = results[0]
+      if (!result) throw new Error("Envia /ship/generate/ returned empty result set")
+      return result
     })
   }
 }
