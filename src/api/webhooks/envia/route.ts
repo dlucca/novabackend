@@ -74,8 +74,7 @@ async function processEvent(
       )
     }
   } catch (err) {
-    const logger2 = container.resolve("logger")
-    logger2.error(
+    logger.error(
       `[envia-webhook] Error processing event for ${trackingNumber}: ${
         err instanceof Error ? err.message : String(err)
       }`
@@ -101,5 +100,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   processed.set(hash, Date.now() + DEDUP_TTL_MS)
 
   // Process asynchronously so the response is never blocked (RNF-03)
-  setImmediate(() => processEvent(payload, (req as any).scope))
+  const scope = (req as any).scope
+  if (!scope) return
+  setImmediate(() => processEvent(payload, scope))
 }
