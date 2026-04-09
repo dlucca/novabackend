@@ -32,6 +32,12 @@ export function mapAddress(medusaAddress: MedusaAddress): EnviaAddress {
   }
 }
 
+// Physical spec for a Novapatch vitamin-patch shipment (single pouch).
+// Update these if packaging changes — they affect carrier rate quotes and label generation.
+const PATCH_WEIGHT_KG = 0.2
+const PATCH_DIMENSIONS = { length: 20, width: 15, height: 3 }
+const PATCH_CONTENT = "Vitamin patches"
+
 export function buildPackages(items: MedusaLineItem[]): EnviaPackage[] {
   const totalQuantity = items.reduce((sum, item) => sum + (item.quantity ?? 1), 0)
   // unit_price is in centavos in Medusa; Envia expects pesos
@@ -42,13 +48,13 @@ export function buildPackages(items: MedusaLineItem[]): EnviaPackage[] {
   return [
     {
       type: "box",
-      content: "Vitamin patches",
+      content: PATCH_CONTENT,
       amount: totalQuantity,
       declaredValue: totalValue,
       lengthUnit: "CM",
       weightUnit: "KG",
-      weight: 0.2,
-      dimensions: { length: 20, width: 15, height: 3 },
+      weight: PATCH_WEIGHT_KG,
+      dimensions: PATCH_DIMENSIONS,
     },
   ]
 }
