@@ -2,6 +2,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import crypto from "node:crypto"
+import Redis from "ioredis"
 
 // In-memory deduplication store: hash → expires-at timestamp
 const processed = new Map<string, number>()
@@ -24,6 +25,15 @@ function isDuplicate(hash: string): boolean {
   return true
 }
 
+// Lazy singleton Redis client — reused across requests
+let redisClient: Redis | null = null
+function getRedis(): Redis | null {
+  const url = process.env.REDIS_URL
+  if (!url) return null
+  if (!redisClient) redisClient = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 })
+  return redisClient
+}
+
 type EnviaWebhookPayload = {
   trackingNumber: string
   status: "in_transit" | "out_for_delivery" | "delivered" | "failed" | "returned"
@@ -41,19 +51,23 @@ async function processEvent(
   logger.info(`[envia-webhook] trackingNumber=${trackingNumber} status=${status}`)
 
   try {
-    // Find the fulfillment label by tracking number
+    // Find the fulfillment by scanning labels relation
     const fulfillmentModule = container.resolve(Modules.FULFILLMENT)
-    // NOTE: listFulfillmentLabels may not be in the official type definitions yet;
-    // using `as any` to bridge the type gap until Medusa v2 exposes it.
-    const labels = await (fulfillmentModule as any).listFulfillmentLabels({ tracking_number: trackingNumber })
+    const fulfillments = await fulfillmentModule.listFulfillments(
+      {},
+      { relations: ["labels"] }
+    )
+    const match = fulfillments.find((f: any) =>
+      f.labels?.some((l: any) => l.tracking_number === trackingNumber)
+    )
 
-    if (!labels || labels.length === 0) {
+    if (!match) {
       logger.warn(`[envia-webhook] No fulfillment found for tracking ${trackingNumber}`)
       return
     }
 
-    const fulfillmentId = labels[0].fulfillment_id
-    const fulfillment = await fulfillmentModule.retrieveFulfillment(fulfillmentId)
+    const fulfillmentId = match.id
+    const fulfillment = match
 
     // Update fulfillment metadata with the latest status
     await fulfillmentModule.updateFulfillment(fulfillmentId, {
@@ -92,12 +106,35 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   // Idempotency: skip duplicate events (RNF-04)
   const hash = eventHash(payload)
-  if (isDuplicate(hash)) {
-    const logger = (req as any).scope?.resolve?.("logger") ?? console
-    logger.info?.(`[envia-webhook] Duplicate event skipped — hash ${hash.slice(0, 8)}`)
-    return
+  const redis = getRedis()
+  if (redis) {
+    try {
+      const key = `envia:webhook:dedup:${hash}`
+      // NX = only set if not exists, EX = expire in 24h
+      const set = await redis.set(key, "1", "EX", 86400, "NX")
+      if (set === null) {
+        // Key already existed — duplicate event
+        const logger = (req as any).scope?.resolve?.("logger") ?? console
+        logger.info?.(`[envia-webhook] Duplicate event skipped — hash ${hash.slice(0, 8)}`)
+        return
+      }
+    } catch {
+      // Redis unavailable — fall back to in-memory check
+      if (isDuplicate(hash)) {
+        const logger = (req as any).scope?.resolve?.("logger") ?? console
+        logger.info?.(`[envia-webhook] Duplicate event skipped (in-memory) — hash ${hash.slice(0, 8)}`)
+        return
+      }
+      processed.set(hash, Date.now() + DEDUP_TTL_MS)
+    }
+  } else {
+    if (isDuplicate(hash)) {
+      const logger = (req as any).scope?.resolve?.("logger") ?? console
+      logger.info?.(`[envia-webhook] Duplicate event skipped (in-memory) — hash ${hash.slice(0, 8)}`)
+      return
+    }
+    processed.set(hash, Date.now() + DEDUP_TTL_MS)
   }
-  processed.set(hash, Date.now() + DEDUP_TTL_MS)
 
   // Process asynchronously so the response is never blocked (RNF-03)
   const scope = (req as any).scope
