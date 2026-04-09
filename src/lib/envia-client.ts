@@ -6,6 +6,7 @@ export type EnviaAddress = {
   name: string
   phone: string
   street: string
+  number: string
   city: string
   state: string
   country: string
@@ -28,6 +29,7 @@ export type EnviaShipmentRequest = {
   destination: EnviaAddress
   packages: EnviaPackage[]
   shipment: { type: 1; carrier?: string; service?: string }
+  settings?: { currency?: string; comments?: string; printFormat?: string; printSize?: string }
 }
 
 export type EnviaRateResult = {
@@ -113,7 +115,23 @@ export class EnviaClient {
       err.statusCode = response.status
       throw err
     }
-    const json = (await response.json()) as { data: T }
+    const json = (await response.json()) as {
+      meta?: string
+      data: T
+      error?: { message?: string; description?: string } | string | null
+    }
+    // Envia returns HTTP 200 but meta:"error" for application-level errors
+    if (json.meta === "error") {
+      let msg = "Unknown Envia error"
+      if (typeof json.error === "string") {
+        msg = json.error
+      } else if (json.error && typeof json.error === "object") {
+        msg = json.error.message ?? json.error.description ?? msg
+      }
+      const err = new Error(`Envia ${path} error: ${msg}`) as Error & { statusCode: number }
+      err.statusCode = 422
+      throw err
+    }
     return json.data
   }
 
@@ -135,5 +153,23 @@ export class EnviaClient {
       if (!result) throw new Error("Envia /ship/generate/ returned empty result set")
       return result
     })
+  }
+
+  /**
+   * Cancels a previously generated shipment.
+   * Used as a compensation step: if Medusa fulfillment creation fails after a label
+   * has already been generated, this voids the label in Envia to avoid a phantom charge.
+   */
+  async cancelShipment({
+    shipmentId,
+    carrier,
+    trackingNumber,
+  }: {
+    shipmentId: number
+    carrier: string
+    trackingNumber: string
+  }): Promise<void> {
+    // Cancellation is best-effort — don't retry on 4xx (already cancelled / invalid)
+    await this.post<unknown>("/ship/cancel", { shipmentId, carrier, trackingNumber })
   }
 }
