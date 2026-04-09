@@ -13,18 +13,23 @@ import { EnviaClient, type EnviaGenerateResult, type EnviaRateResult } from "../
 import { mapAddress, buildShipmentRequest } from "../../../lib/envia-mappers"
 
 // Carriers to quote in parallel. The Envia API requires one carrier per request.
-// Validated against the Envia sandbox (2026-04) — update as your Envia account changes.
+// Override via ENVIA_CARRIERS env var (comma-separated) to change without redeploying.
 //
-// Sandbox results (origin: Iztapalapa DIF → destination: Miguel Hidalgo DIF):
+// Sandbox results (origin: Iztapalapa DIF → destination: Miguel Hidalgo DIF, 2026-04):
 //   noventa9minutos  9.28 MXN  local_same_day   (same-day CDMX only — confirm coverage per order)
 //   ups             11.60 MXN  saver             (unusually cheap in sandbox; verify in prod)
 //   estafeta       228.52 MXN  express           (fails /ship/generate/ in sandbox — sandbox bug)
 //   dhl            304.57 MXN  ground
 //   fedex          564.92 MXN  ground
 //
-// Not included: redpack (not active), paquetexpress (requires colonia field),
-//   ampm/sendex/jtexpress (no coverage), borzo/mensajeros_urbanos (not supported)
-const CARRIERS_TO_QUOTE = ["noventa9minutos", "ups", "dhl", "fedex", "estafeta"]
+// Not included by default: redpack (not active in sandbox), paquetexpress (requires colonia field)
+const DEFAULT_CARRIERS = ["noventa9minutos", "ups", "dhl", "fedex", "estafeta"]
+
+function getCarriersToQuote(): string[] {
+  const env = process.env.ENVIA_CARRIERS
+  if (env) return env.split(",").map((c) => c.trim()).filter(Boolean)
+  return DEFAULT_CARRIERS
+}
 
 type CompensationData = {
   shipmentId: number
@@ -42,8 +47,9 @@ export const generateEnviaLabelStep = createStep(
     const items = order.items ?? []
 
     // ── 1. Quote all carriers in parallel ────────────────────────────────────
+    const carriersToQuote = getCarriersToQuote()
     const rateSettled = await Promise.allSettled(
-      CARRIERS_TO_QUOTE.map((carrier) =>
+      carriersToQuote.map((carrier) =>
         client.getRate(buildShipmentRequest(destination, items, { carrier }))
       )
     )
@@ -51,7 +57,7 @@ export const generateEnviaLabelStep = createStep(
     rateSettled.forEach((result, i) => {
       if (result.status === "rejected") {
         logger.warn(
-          `[envia-create-fulfillment] Rate failed for "${CARRIERS_TO_QUOTE[i]}": ${
+          `[envia-create-fulfillment] Rate failed for "${carriersToQuote[i]}": ${
             result.reason instanceof Error ? result.reason.message : String(result.reason)
           }`
         )
