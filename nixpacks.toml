@@ -2,8 +2,5 @@
 cmds = ["npm ci"]
 cache_directories = ["/root/.npm"]
 
-[phases.build]
-cmds = ["npm run build"]
-
 [start]
-cmd = "npm run start"
+cmd = "npm run build && npx medusa db:migrate && npm run start"
