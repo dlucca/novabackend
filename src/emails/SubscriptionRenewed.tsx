@@ -14,7 +14,7 @@ type Props = {
   openpayChargeId: string
 }
 
-export function SubscriptionRenewed({
+export default function SubscriptionRenewed({
   customerName,
   amount,
   currencyCode,
@@ -73,4 +73,13 @@ export function SubscriptionRenewed({
       <EmailFooter />
     </EmailLayout>
   )
+}
+
+SubscriptionRenewed.defaultProps = {
+  customerName: "Ramiro",
+  amount: 45000,
+  currencyCode: "mxn",
+  cycleNumber: 2,
+  nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  openpayChargeId: "ch_ABC123xyz",
 }

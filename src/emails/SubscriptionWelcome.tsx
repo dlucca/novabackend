@@ -22,7 +22,7 @@ function intervalLabel(days: number) {
   return "trimestral"
 }
 
-export function SubscriptionWelcome({ name, orderId, subscriptionItems }: Props) {
+export default function SubscriptionWelcome({ name, orderId, subscriptionItems }: Props) {
   return (
     <EmailLayout preview="¡Tu suscripción Novapatch está activa!">
       <EmailHeader />
@@ -55,4 +55,12 @@ export function SubscriptionWelcome({ name, orderId, subscriptionItems }: Props)
       <EmailFooter />
     </EmailLayout>
   )
+}
+
+SubscriptionWelcome.defaultProps = {
+  name: "Ramiro",
+  orderId: "1042",
+  subscriptionItems: [
+    { title: "Parche Energía Novapatch", interval_days: 30 },
+  ],
 }

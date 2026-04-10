@@ -12,7 +12,7 @@ type Props = {
   frontendUrl: string
 }
 
-export function SubscriptionPaymentFailed({ customerName, reason, error, frontendUrl }: Props) {
+export default function SubscriptionPaymentFailed({ customerName, reason, error, frontendUrl }: Props) {
   const reasonText =
     reason === "no_card"
       ? "No encontramos una tarjeta registrada en tu cuenta."
@@ -89,4 +89,10 @@ export function SubscriptionPaymentFailed({ customerName, reason, error, fronten
       <EmailFooter />
     </EmailLayout>
   )
+}
+
+SubscriptionPaymentFailed.defaultProps = {
+  customerName: "Ramiro",
+  reason: "charge_failed",
+  frontendUrl: "https://novapatch.care",
 }
