@@ -32,12 +32,14 @@ export default async function orderConfirmationEmailHandler({
       React.createElement(OrderConfirmation, {
         name,
         displayId,
-        items: (order.items ?? []).map((item: any) => ({
-          title: item.title ?? "",
-          quantity: item.quantity ?? 1,
-          unit_price: item.unit_price ?? 0,
-          metadata: item.metadata,
-        })),
+        items: (order.items ?? [])
+          .filter((item: any) => item.is_shipping_cost !== true && item.metadata?.is_shipping !== true)
+          .map((item: any) => ({
+            title: item.title ?? "",
+            quantity: item.quantity ?? 1,
+            unit_price: item.unit_price ?? 0,
+            metadata: item.metadata,
+          })),
         shippingAddress: order.shipping_address ?? null,
         currencyCode: order.currency_code ?? "mxn",
       })

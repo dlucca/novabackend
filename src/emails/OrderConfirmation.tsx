@@ -43,7 +43,7 @@ function fmt(n: number, currency: string) {
     style: "currency",
     currency: currency.toUpperCase(),
     minimumFractionDigits: 0,
-  }).format(n / 100)
+  }).format(n)
 }
 
 export default function OrderConfirmation({
@@ -289,8 +289,8 @@ OrderConfirmation.defaultProps = {
   displayId: "1042",
   currencyCode: "mxn",
   items: [
-    { title: "Parche Energía Novapatch", quantity: 1, unit_price: 45000, metadata: {} },
-    { title: "Parche Sueño Profundo", quantity: 2, unit_price: 38000, metadata: { is_subscription: true } },
+    { title: "Parche Energía Novapatch", quantity: 1, unit_price: 450, metadata: {} },
+    { title: "Parche Sueño Profundo", quantity: 2, unit_price: 380, metadata: { is_subscription: true } },
   ],
   shippingAddress: {
     first_name: "Ramiro",
