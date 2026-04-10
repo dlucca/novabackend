@@ -2,7 +2,7 @@ import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { Modules } from "@medusajs/framework/utils"
 import * as React from "react"
 import { sendEmail, renderEmail } from "../lib/resend"
-import { SubscriptionWelcome } from "../emails/SubscriptionWelcome"
+import SubscriptionWelcome from "../emails/SubscriptionWelcome"
 
 export default async function subscriptionWelcomeEmailHandler({
   event,

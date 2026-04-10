@@ -2,7 +2,7 @@ import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { Modules } from "@medusajs/framework/utils"
 import * as React from "react"
 import { sendEmail, renderEmail } from "../lib/resend"
-import { OrderConfirmation } from "../emails/OrderConfirmation"
+import OrderConfirmation from "../emails/OrderConfirmation"
 
 export default async function orderConfirmationEmailHandler({
   event,

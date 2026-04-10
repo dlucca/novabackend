@@ -1,7 +1,7 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import * as React from "react"
 import { sendEmail, renderEmail } from "../lib/resend"
-import { SubscriptionPaymentFailed } from "../emails/SubscriptionPaymentFailed"
+import SubscriptionPaymentFailed from "../emails/SubscriptionPaymentFailed"
 
 type PaymentFailedEventData = {
   subscription_id: string
