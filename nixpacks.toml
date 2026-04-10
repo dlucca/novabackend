@@ -3,4 +3,7 @@ cmds = ["npm ci"]
 cache_directories = ["/root/.npm"]
 
 [phases.build]
-cmds = ["npx medusa build"]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"
