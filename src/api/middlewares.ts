@@ -48,8 +48,24 @@ const clerkMiddleware = async (
   }
 }
 
+const rootRedirectMiddleware = (
+  req: MedusaRequest,
+  res: MedusaResponse,
+  next: MedusaNextFunction
+) => {
+  if (req.path === "/") {
+    res.redirect("/app")
+    return
+  }
+  next()
+}
+
 export default defineMiddlewares({
   routes: [
+    {
+      matcher: "/*",
+      middlewares: [rootRedirectMiddleware],
+    },
     {
       matcher: "/store/me/*",
       middlewares: [clerkMiddleware],
