@@ -53,7 +53,7 @@ const rootRedirectMiddleware = (
   res: MedusaResponse,
   next: MedusaNextFunction
 ) => {
-  if (req.method === "GET" && (req.originalUrl === "/" || req.url === "/")) {
+  if (req.method === "GET" && req.originalUrl === "/") {
     res.redirect("/app")
     return
   }
