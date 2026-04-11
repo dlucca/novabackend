@@ -143,8 +143,10 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
         redirect_url: redirectUrl,
       })
 
+      // Openpay charges the card immediately — return CAPTURED so Medusa
+      // emits order.payment_captured and triggers downstream fulfillment flows.
       return {
-        status: PaymentSessionStatus.AUTHORIZED,
+        status: PaymentSessionStatus.CAPTURED,
         data: {
           openpay_charge_id: charge.id,
           openpay_customer_id: openpayCustomerId,
