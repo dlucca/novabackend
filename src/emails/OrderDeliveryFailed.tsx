@@ -4,6 +4,7 @@ import * as React from "react"
 import { EmailLayout } from "./components/EmailLayout"
 import { EmailHeader } from "./components/EmailHeader"
 import { EmailFooter } from "./components/EmailFooter"
+import { OrderStatusTracker } from "./components/OrderStatusTracker"
 
 const NAVY = "#003D70"
 const CORAL = "#E8503A"
@@ -14,9 +15,16 @@ type Props = {
   displayId: string | number
   trackingNumber: string
   status: "failed" | "returned"
+  failureReason?: string
 }
 
-export default function OrderDeliveryFailed({ name, displayId, trackingNumber, status }: Props) {
+export default function OrderDeliveryFailed({
+  name,
+  displayId,
+  trackingNumber,
+  status,
+  failureReason,
+}: Props) {
   const isReturned = status === "returned"
   const headline = isReturned
     ? `Tu pedido #${displayId} fue devuelto`
@@ -36,20 +44,26 @@ export default function OrderDeliveryFailed({ name, displayId, trackingNumber, s
         {headline}
       </Text>
 
-      <Hr style={{ borderColor: "#E5E7EB", margin: "20px 0" }} />
+      <OrderStatusTracker currentStep={2} variant="failed" />
+
+      <Hr style={{ borderColor: "#E5E7EB", margin: "4px 0 20px" }} />
 
       <Section style={{ backgroundColor: "#FEF2F2", borderRadius: 8, padding: "16px 20px", marginBottom: 24 }}>
         <Text style={{ fontSize: 14, color: "#DC2626", margin: "0 0 4px", fontWeight: 600 }}>
           {isReturned ? "Pedido devuelto" : "Entrega fallida"}
         </Text>
-        <Text style={{ fontSize: 13, color: GRAY, margin: 0 }}>
+        <Text style={{ fontSize: 13, color: GRAY, margin: "0 0 8px" }}>
+          {bodyText}
+        </Text>
+        <Text style={{ fontSize: 13, color: GRAY, margin: "0 0 4px" }}>
           Guía: {trackingNumber}
         </Text>
+        {failureReason && (
+          <Text style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>
+            Detalle del transportista: {failureReason}
+          </Text>
+        )}
       </Section>
-
-      <Text style={{ fontSize: 14, color: GRAY, margin: "0 0 24px" }}>
-        {bodyText}
-      </Text>
 
       <Section style={{ textAlign: "center" as const, margin: "8px 0 24px" }}>
         <Button

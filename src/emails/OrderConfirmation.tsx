@@ -1,5 +1,5 @@
 // src/emails/OrderConfirmation.tsx
-import { Heading, Text, Row, Column, Section, Button, Hr } from "@react-email/components"
+import { Heading, Text, Row, Column, Section, Hr } from "@react-email/components"
 import * as React from "react"
 import { EmailLayout } from "./components/EmailLayout"
 import { EmailHeader } from "./components/EmailHeader"
@@ -9,7 +9,6 @@ import { OrderStatusTracker } from "./components/OrderStatusTracker"
 const NAVY = "#003D70"
 const CORAL = "#E8503A"
 const GRAY = "#6B7280"
-const LIGHT_GRAY = "#F3F4F6"
 
 type OrderItem = {
   title: string
@@ -34,8 +33,6 @@ type Props = {
   items: OrderItem[]
   shippingAddress?: ShippingAddress | null
   currencyCode: string
-  trackingUrl?: string
-  orderDetailsUrl?: string
 }
 
 function fmt(n: number, currency: string) {
@@ -52,8 +49,6 @@ export default function OrderConfirmation({
   items,
   shippingAddress,
   currencyCode,
-  trackingUrl,
-  orderDetailsUrl,
 }: Props) {
   const total = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
 
@@ -65,9 +60,6 @@ export default function OrderConfirmation({
   const addressLine2 = [addr?.city, addr?.province, addr?.postal_code]
     .filter(Boolean)
     .join(", ")
-
-  const storeUrl = process.env.STORE_CORS ?? "https://novapatch.care"
-  const detailsUrl = orderDetailsUrl ?? `${storeUrl}/cuenta/pedidos`
 
   return (
     <EmailLayout preview={`Tu pedido #${displayId} fue confirmado — Novapatch`}>
@@ -112,11 +104,11 @@ export default function OrderConfirmation({
       </Row>
 
       {/* Status tracker */}
-      <OrderStatusTracker currentStep={0} trackingUrl={trackingUrl} />
+      <OrderStatusTracker currentStep={0} />
 
       <Hr style={{ borderColor: "#E5E7EB", margin: "4px 0 20px" }} />
 
-      {/* Shipping info: 2 columns like MOOV */}
+      {/* Shipping info */}
       <Row style={{ marginBottom: 20 }}>
         <Column style={{ verticalAlign: "top" as const, paddingRight: 16 }}>
           <Text
@@ -258,25 +250,6 @@ export default function OrderConfirmation({
             </Text>
           </Column>
         </Row>
-      </Section>
-
-      {/* CTA */}
-      <Section style={{ textAlign: "center" as const, margin: "8px 0 24px" }}>
-        <Button
-          href={detailsUrl}
-          style={{
-            backgroundColor: CORAL,
-            color: "#ffffff",
-            borderRadius: 6,
-            padding: "13px 28px",
-            fontSize: 14,
-            fontWeight: 700,
-            textDecoration: "none",
-            display: "inline-block",
-          }}
-        >
-          Ver detalles de mi pedido
-        </Button>
       </Section>
 
       <EmailFooter />
