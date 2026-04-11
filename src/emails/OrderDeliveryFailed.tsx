@@ -93,5 +93,4 @@ OrderDeliveryFailed.defaultProps = {
   displayId: "1042",
   trackingNumber: "1Z999AA10123456784",
   status: "failed" as "failed" | "returned",
-  failureReason: "Destinatario no encontrado en domicilio",
 }
