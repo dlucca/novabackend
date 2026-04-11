@@ -6,12 +6,17 @@ import type { EnviaGenerateResult } from "../../../lib/envia-client"
 export const createMedusaFulfillmentStep = createStep(
   "create-medusa-fulfillment",
   async ({ order, shipment }: { order: any; shipment: EnviaGenerateResult }, { container }) => {
+    const logger = container.resolve("logger")
     const locationId = process.env.MEDUSA_WAREHOUSE_LOCATION_ID
     if (!locationId) {
       throw new Error(
         "MEDUSA_WAREHOUSE_LOCATION_ID is not set — cannot register fulfillment in Medusa"
       )
     }
+
+    logger.info(
+      `[envia-create-fulfillment] Passing labels to Medusa — tracking_number: "${shipment.trackingNumber}", tracking_url: "${shipment.trackUrl}", label_url: "${String(shipment.label ?? "").substring(0, 80)}"`
+    )
 
     await createOrderFulfillmentWorkflow(container).run({
       input: {

@@ -98,8 +98,12 @@ export const generateEnviaLabelStep = createStep(
         shipment = await client.generateShipment(
           buildShipmentRequest(destination, items, { carrier: rate.carrier, service: rate.service })
         )
+        // Log the raw response so we can verify field names match our type definition
         logger.info(
-          `[envia-create-fulfillment] Label generated — tracking: ${shipment.trackingNumber}, shipmentId: ${shipment.shipmentId}`
+          `[envia-create-fulfillment] Label generated — raw response keys: ${Object.keys(shipment as any).join(", ")}`
+        )
+        logger.info(
+          `[envia-create-fulfillment] Label generated — tracking: ${(shipment as any).trackingNumber ?? (shipment as any).tracking_number ?? "MISSING"}, shipmentId: ${(shipment as any).shipmentId ?? (shipment as any).shipment_id ?? "MISSING"}, label: ${String((shipment as any).label ?? (shipment as any).labelUrl ?? (shipment as any).label_url ?? "MISSING").substring(0, 80)}`
         )
         break
       } catch (err: any) {
