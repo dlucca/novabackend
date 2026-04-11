@@ -1,6 +1,6 @@
 // src/subscribers/order-shipped-email.ts
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { Modules } from "@medusajs/framework/utils"
+import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import * as React from "react"
 import { sendEmail, renderEmail } from "../lib/resend"
 import OrderShipped from "../emails/OrderShipped"
@@ -8,14 +8,13 @@ import OrderShipped from "../emails/OrderShipped"
 export default async function orderShippedEmailHandler({
   event,
   container,
-}: SubscriberArgs<{ order_id: string; fulfillment_id: string }>) {
-  const orderId = event.data.order_id
-  const fulfillmentId = event.data.fulfillment_id
+}: SubscriberArgs<{ id: string }>) {
+  const orderId = event.data.id
   const logger = container.resolve("logger")
 
   try {
     const orderService = container.resolve(Modules.ORDER)
-    const fulfillmentService = container.resolve(Modules.FULFILLMENT)
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
 
     const order = await orderService.retrieveOrder(orderId, {
       relations: ["shipping_address"],
@@ -26,21 +25,28 @@ export default async function orderShippedEmailHandler({
       return
     }
 
-    // Retrieve the specific fulfillment from the event
-    const fulfillment = await fulfillmentService.retrieveFulfillment(
-      fulfillmentId,
-      { relations: ["labels"] }
-    ) as any
+    const { data: orders } = await query.graph({
+      entity: "order",
+      filters: { id: orderId },
+      fields: ["fulfillments.id", "fulfillments.labels.*", "fulfillments.metadata"],
+    })
 
+    const orderData = orders[0]
+    if (!orderData?.fulfillments?.length) {
+      logger.warn(`[order-shipped] No fulfillments found for order ${orderId}`)
+      return
+    }
+
+    const fulfillment = orderData.fulfillments[orderData.fulfillments.length - 1] as any
     if (!fulfillment) {
-      logger.warn(`[order-shipped] Fulfillment not found: ${fulfillmentId}`)
+      logger.warn(`[order-shipped] No fulfillment found for order ${orderId}`)
       return
     }
 
     const label = fulfillment.labels?.[0]
 
     if (!label?.tracking_number) {
-      logger.warn(`[order-shipped] No tracking label for fulfillment ${fulfillmentId}`)
+      logger.warn(`[order-shipped] No tracking label for order ${orderId}`)
       return
     }
 
@@ -49,7 +55,7 @@ export default async function orderShippedEmailHandler({
     const carrier = fulfillment.metadata?.carrier ?? "carrier"
 
     const html = await renderEmail(
-      React.createElement(OrderShipped, {
+      React.createElement(OrderShipped as any, {
         name,
         displayId,
         trackingNumber: label.tracking_number,
