@@ -25,11 +25,13 @@ export default async function enviaFulfillmentHandler({
   } catch (err) {
     // RNF-01: never throw — the order stays as `paid`; an operator can create
     // the fulfillment manually. The workflow logs details of each failed step.
-    logger.error(
-      `[envia-fulfillment] Workflow failed for order ${orderId}: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    )
+    let errMsg: string
+    if (err instanceof Error) {
+      errMsg = err.message
+    } else {
+      try { errMsg = JSON.stringify(err) } catch { errMsg = String(err) }
+    }
+    logger.error(`[envia-fulfillment] Workflow failed for order ${orderId}: ${errMsg}`)
   }
 }
 

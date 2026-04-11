@@ -46,6 +46,14 @@ export const generateEnviaLabelStep = createStep(
     const destination = mapAddress(order.shipping_address)
     const items = order.items ?? []
 
+    // Diagnostic: log env config so we can verify in Railway logs
+    logger.info(
+      `[envia-create-fulfillment] Config — ENVIA_API_URL="${process.env.ENVIA_API_URL ?? "NOT SET"}" token_set=${Boolean(process.env.ENVIA_API_TOKEN)}`
+    )
+    logger.info(
+      `[envia-create-fulfillment] Destination: ${JSON.stringify(destination)}`
+    )
+
     // ── 1. Quote all carriers in parallel ────────────────────────────────────
     const carriersToQuote = getCarriersToQuote()
     const rateSettled = await Promise.allSettled(
@@ -56,10 +64,14 @@ export const generateEnviaLabelStep = createStep(
 
     rateSettled.forEach((result, i) => {
       if (result.status === "rejected") {
+        const err = result.reason
+        const msg = err instanceof Error ? err.message : String(err)
+        // Node fetch() TypeErrors carry a `cause` with the underlying OS error (ECONNREFUSED, etc.)
+        const cause = err instanceof Error && (err as any).cause
+          ? String((err as any).cause)
+          : undefined
         logger.warn(
-          `[envia-create-fulfillment] Rate failed for "${carriersToQuote[i]}": ${
-            result.reason instanceof Error ? result.reason.message : String(result.reason)
-          }`
+          `[envia-create-fulfillment] Rate failed for "${carriersToQuote[i]}": ${msg}${cause ? ` (cause: ${cause})` : ""}`
         )
       }
     })
