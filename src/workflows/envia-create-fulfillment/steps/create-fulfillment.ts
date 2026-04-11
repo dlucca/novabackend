@@ -26,11 +26,14 @@ export const createMedusaFulfillmentStep = createStep(
           },
         ],
         metadata: {
+          order_id: order.id,
           envia_shipment_id: String(shipment.shipmentId),
           envia_track_url: shipment.trackUrl,
           envia_label_url: shipment.label,
           carrier: shipment.carrier,
           service: shipment.service,
+          envia_carrier_cost: String(shipment.totalPrice),
+          envia_currency: shipment.currency,
         },
       },
     })

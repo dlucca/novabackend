@@ -2,6 +2,7 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { SUBSCRIPTION_MODULE } from "../../../modules/subscription"
 import { OpenpayClient } from "../../../modules/openpay-payment/openpay-client"
+import { enviaCreateFulfillmentWorkflow } from "../../envia-create-fulfillment"
 
 type ProcessBillingInput = {
   subscription_id: string
@@ -268,6 +269,22 @@ export const processBillingStep = createStep(
     logger.info(
       `${LOG} Billed successfully. Cycle ${cycleNumber}. Order: ${renewalOrder.id}. Next billing: ${nextBillingDate.toISOString()}`
     )
+
+    // Generate shipping label — best-effort, does not roll back the charge if it fails
+    if (process.env.ENVIA_API_TOKEN && process.env.ENVIA_API_URL) {
+      try {
+        await enviaCreateFulfillmentWorkflow(container).run({ input: { orderId: renewalOrder.id } })
+        logger.info(`${LOG} Envia fulfillment created for renewal order ${renewalOrder.id}`)
+      } catch (enviaErr) {
+        logger.error(
+          `${LOG} Envia fulfillment failed for renewal order ${renewalOrder.id}: ${
+            enviaErr instanceof Error ? enviaErr.message : String(enviaErr)
+          } — operator can generate label manually`
+        )
+      }
+    } else {
+      logger.warn(`${LOG} ENVIA_API_TOKEN/URL not set — skipping fulfillment for renewal order ${renewalOrder.id}`)
+    }
 
     return new StepResponse(
       { success: true, order_id: renewalOrder.id, cycle_number: cycleNumber },

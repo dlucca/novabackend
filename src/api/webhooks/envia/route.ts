@@ -3,6 +3,10 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import crypto from "node:crypto"
 import Redis from "ioredis"
+import * as React from "react"
+import { sendEmail, renderEmail } from "../../../lib/resend"
+import OrderDelivered from "../../../emails/OrderDelivered"
+import OrderDeliveryFailed from "../../../emails/OrderDeliveryFailed"
 
 // In-memory deduplication store: hash → expires-at timestamp
 const processed = new Map<string, number>()
@@ -80,12 +84,55 @@ async function processEvent(
 
     logger.info(`[envia-webhook] Updated fulfillment ${fulfillmentId} status → ${status}`)
 
-    if (status === "delivered") {
-      logger.info(`[envia-webhook] Order delivered — tracking ${trackingNumber}`)
-    } else if (status === "failed" || status === "returned") {
-      logger.warn(
-        `[envia-webhook] Shipment issue (${status}) for tracking ${trackingNumber} — manual review required`
-      )
+    if (status === "delivered" || status === "failed" || status === "returned") {
+      const orderId = fulfillment.metadata?.order_id as string | undefined
+
+      if (!orderId) {
+        logger.warn(`[envia-webhook] No order_id in fulfillment metadata for tracking ${trackingNumber} — skipping email`)
+      } else {
+        try {
+          const orderService = container.resolve(Modules.ORDER)
+          const order = await orderService.retrieveOrder(orderId, {
+            relations: ["shipping_address"],
+          }) as any
+
+          const customerEmail = order?.email
+          const customerName = order?.shipping_address?.first_name ?? "Cliente"
+          const displayId = order?.display_id ?? orderId
+
+          if (customerEmail) {
+            let html: string
+            let subject: string
+
+            if (status === "delivered") {
+              html = await renderEmail(
+                React.createElement(OrderDelivered, { name: customerName, displayId, trackingNumber })
+              )
+              subject = `Tu pedido #${displayId} fue entregado — Novapatch`
+            } else {
+              html = await renderEmail(
+                React.createElement(OrderDeliveryFailed, {
+                  name: customerName,
+                  displayId,
+                  trackingNumber,
+                  status: status as "failed" | "returned",
+                })
+              )
+              subject = `Problema con la entrega de tu pedido #${displayId} — Novapatch`
+            }
+
+            await sendEmail({ to: customerEmail, subject, html })
+            logger.info(`[envia-webhook] Email de ${status} enviado a ${customerEmail} para orden #${displayId}`)
+          }
+        } catch (emailErr) {
+          // Never throw from webhook — 200 was already sent to Envia
+          logger.error(
+            `[envia-webhook] Failed to send ${status} email for tracking ${trackingNumber}: ${
+              emailErr instanceof Error ? emailErr.message : String(emailErr)
+            }`
+          )
+        }
+      }
     }
   } catch (err) {
     logger.error(
