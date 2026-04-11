@@ -36,7 +36,7 @@ export default function OrderShipped({
         Tu pedido #{displayId} está en camino
       </Text>
 
-      <OrderStatusTracker currentStep={2} trackingUrl={trackingUrl} />
+      <OrderStatusTracker currentStep={1} trackingUrl={trackingUrl} />
 
       <Hr style={{ borderColor: "#E5E7EB", margin: "4px 0 20px" }} />
 

@@ -4,27 +4,20 @@ import * as React from "react"
 
 const NAVY = "#003D70"
 const CORAL = "#E8503A"
+const RED = "#DC2626"
 const GRAY_BG = "#E5E7EB"
 const GRAY_TEXT = "#9CA3AF"
-const LINE_ACTIVE = NAVY
-const LINE_INACTIVE = GRAY_BG
 
 type StepDef = {
   label: string
-  // Inline SVG path data
   iconPath: string
   iconViewBox: string
 }
 
 const STEPS: StepDef[] = [
   {
-    label: "Tu pedido",
+    label: "Confirmado",
     iconPath: "M19 7h-1V6a5 5 0 00-10 0v1H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2zm-7 10a2 2 0 110-4 2 2 0 010 4zm3-10H9V6a3 3 0 016 0v1z",
-    iconViewBox: "0 0 24 24",
-  },
-  {
-    label: "En preparación",
-    iconPath: "M20 7l-8-4-8 4m16 0v10l-8 4m-8-4V7m16 0L12 11M4 7l8 4",
     iconViewBox: "0 0 24 24",
   },
   {
@@ -39,22 +32,56 @@ const STEPS: StepDef[] = [
   },
 ]
 
+// X icon for failed delivery
+const FAILED_ICON_PATH = "M18 6L6 18M6 6l12 12"
+
 type Props = {
-  currentStep: 0 | 1 | 2 | 3
+  currentStep: 0 | 1 | 2
+  variant?: "default" | "failed"
   trackingUrl?: string
 }
 
-function StepCircle({ step, active, completed }: { step: StepDef; active: boolean; completed: boolean }) {
-  const bg = active ? CORAL : completed ? NAVY : "transparent"
-  const borderColor = active || completed ? (active ? CORAL : NAVY) : GRAY_BG
-  const iconColor = active || completed ? "#ffffff" : GRAY_TEXT
+function StepCircle({
+  step,
+  index,
+  active,
+  completed,
+  isFailed,
+}: {
+  step: StepDef
+  index: number
+  active: boolean
+  completed: boolean
+  isFailed: boolean
+}) {
+  const showFailIcon = isFailed && index === 2
+
+  let bg: string
+  let borderColor: string
+  let iconColor: string
+
+  if (showFailIcon) {
+    bg = RED
+    borderColor = RED
+    iconColor = "#ffffff"
+  } else if (active) {
+    bg = CORAL
+    borderColor = CORAL
+    iconColor = "#ffffff"
+  } else if (completed) {
+    bg = NAVY
+    borderColor = NAVY
+    iconColor = "#ffffff"
+  } else {
+    bg = "transparent"
+    borderColor = GRAY_BG
+    iconColor = GRAY_TEXT
+  }
+
+  const iconPath = showFailIcon ? FAILED_ICON_PATH : step.iconPath
 
   return (
-    <table
-      cellPadding={0}
-      cellSpacing={0}
-      style={{ margin: "0 auto" }}
-    >
+    <table cellPadding={0} cellSpacing={0} style={{ margin: "0 auto" }}>
       <tr>
         <td
           style={{
@@ -78,7 +105,7 @@ function StepCircle({ step, active, completed }: { step: StepDef; active: boolea
             strokeLinejoin="round"
             style={{ display: "inline-block", verticalAlign: "middle" }}
           >
-            <path d={step.iconPath} />
+            <path d={iconPath} />
           </svg>
         </td>
       </tr>
@@ -86,7 +113,13 @@ function StepCircle({ step, active, completed }: { step: StepDef; active: boolea
   )
 }
 
-export function OrderStatusTracker({ currentStep, trackingUrl }: Props) {
+export function OrderStatusTracker({
+  currentStep,
+  variant = "default",
+  trackingUrl,
+}: Props) {
+  const isFailed = variant === "failed"
+
   return (
     <Section style={{ margin: "28px 0 20px" }}>
       {/* Circles + lines */}
@@ -99,14 +132,20 @@ export function OrderStatusTracker({ currentStep, trackingUrl }: Props) {
           return (
             <React.Fragment key={i}>
               <Column style={{ width: 64, textAlign: "center" as const }}>
-                <StepCircle step={step} active={active} completed={completed} />
+                <StepCircle
+                  step={step}
+                  index={i}
+                  active={active}
+                  completed={completed}
+                  isFailed={isFailed}
+                />
               </Column>
               {!isLast && (
                 <Column style={{ verticalAlign: "middle" as const, paddingBottom: 4 }}>
                   <div
                     style={{
                       height: 2,
-                      backgroundColor: completed ? LINE_ACTIVE : LINE_INACTIVE,
+                      backgroundColor: completed ? NAVY : GRAY_BG,
                     }}
                   />
                 </Column>
@@ -122,6 +161,18 @@ export function OrderStatusTracker({ currentStep, trackingUrl }: Props) {
           const active = i === currentStep
           const completed = i < currentStep
           const isLast = i === STEPS.length - 1
+          const showFailed = isFailed && i === 2
+
+          let labelColor: string
+          if (showFailed) {
+            labelColor = RED
+          } else if (active) {
+            labelColor = CORAL
+          } else if (completed) {
+            labelColor = NAVY
+          } else {
+            labelColor = GRAY_TEXT
+          }
 
           return (
             <React.Fragment key={i}>
@@ -131,11 +182,11 @@ export function OrderStatusTracker({ currentStep, trackingUrl }: Props) {
                     fontSize: 10,
                     lineHeight: "1.3",
                     margin: 0,
-                    color: active ? CORAL : completed ? NAVY : GRAY_TEXT,
-                    fontWeight: active ? 700 : 400,
+                    color: labelColor,
+                    fontWeight: active || showFailed ? 700 : 400,
                   }}
                 >
-                  {step.label}
+                  {showFailed ? "No entregado" : step.label}
                 </Text>
               </Column>
               {!isLast && <Column />}
