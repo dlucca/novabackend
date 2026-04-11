@@ -8,8 +8,8 @@ import OrderShipped from "../emails/OrderShipped"
 export default async function orderShippedEmailHandler({
   event,
   container,
-}: SubscriberArgs<{ id: string }>) {
-  const orderId = event.data.id
+}: SubscriberArgs<{ order_id: string; fulfillment_id: string }>) {
+  const orderId = event.data.order_id
   const logger = container.resolve("logger")
 
   try {
