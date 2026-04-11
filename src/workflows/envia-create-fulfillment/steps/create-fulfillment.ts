@@ -1,6 +1,6 @@
 // src/workflows/envia-create-fulfillment/steps/create-fulfillment.ts
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
-import { createOrderFulfillmentWorkflow } from "@medusajs/medusa/core-flows"
+import { createOrderFulfillmentWorkflow, createShipmentWorkflow } from "@medusajs/medusa/core-flows"
 import type { EnviaGenerateResult } from "../../../lib/envia-client"
 
 export const createMedusaFulfillmentStep = createStep(
@@ -15,21 +15,15 @@ export const createMedusaFulfillmentStep = createStep(
     }
 
     logger.info(
-      `[envia-create-fulfillment] Passing labels to Medusa — tracking_number: "${shipment.trackingNumber}", tracking_url: "${shipment.trackUrl}", label_url: "${String(shipment.label ?? "").substring(0, 80)}"`
+      `[envia-create-fulfillment] Creating fulfillment — tracking: "${shipment.trackingNumber}", carrier: "${shipment.carrier}"`
     )
 
-    await createOrderFulfillmentWorkflow(container).run({
+    // Step 1: Create the fulfillment with Envia metadata (no labels yet)
+    const { result: fulfillment } = await createOrderFulfillmentWorkflow(container).run({
       input: {
         order_id: order.id,
         location_id: locationId,
         items: order.items.map((item: any) => ({ id: item.id, quantity: item.quantity })),
-        labels: [
-          {
-            tracking_number: shipment.trackingNumber,
-            tracking_url: shipment.trackUrl,
-            label_url: shipment.label,
-          },
-        ],
         metadata: {
           order_id: order.id,
           envia_shipment_id: String(shipment.shipmentId),
@@ -43,6 +37,30 @@ export const createMedusaFulfillmentStep = createStep(
       },
     })
 
-    return new StepResponse(null)
+    logger.info(
+      `[envia-create-fulfillment] Fulfillment created: ${fulfillment.id} — marking as shipped`
+    )
+
+    // Step 2: Mark as shipped with tracking labels.
+    // This sets shipped_at, changes order status to "Fulfilled", and persists
+    // the tracking number + label URL so the admin shows them natively.
+    await createShipmentWorkflow(container).run({
+      input: {
+        id: fulfillment.id,
+        labels: [
+          {
+            tracking_number: shipment.trackingNumber,
+            tracking_url: shipment.trackUrl,
+            label_url: shipment.label,
+          },
+        ],
+      },
+    })
+
+    logger.info(
+      `[envia-create-fulfillment] Shipment registered — fulfillment ${fulfillment.id} marked as shipped`
+    )
+
+    return new StepResponse(fulfillment.id)
   }
 )
