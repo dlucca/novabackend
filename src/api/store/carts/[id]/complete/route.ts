@@ -1,5 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { completeCartWorkflow, capturePaymentWorkflow } from "@medusajs/medusa/core-flows"
+import { completeCartWorkflow } from "@medusajs/medusa/core-flows"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -90,31 +90,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       input: { id: cartId },
     })
 
-    // Openpay charges immediately during authorizePayment — Medusa won't auto-emit
-    // order.payment_captured unless we explicitly call capturePaymentWorkflow.
-    // This triggers the envia-fulfillment subscriber downstream.
+    // Openpay charges immediately during authorizePayment — capturePaymentWorkflow
+    // is a no-op when the payment is already captured. Emit order.payment_captured
+    // directly so the envia-fulfillment subscriber triggers and generates the label.
     const orderId = (result as any)?.order?.id ?? (result as any)?.id
     if (orderId) {
       try {
-        const { data: orders } = await query.graph({
-          entity: "order",
-          filters: { id: orderId },
-          fields: ["id", "payment_collections.payments.id"],
-        })
-        const payments = (orders?.[0] as any)?.payment_collections
-          ?.flatMap((pc: any) => pc.payments ?? []) ?? []
-
-        for (const payment of payments) {
-          if (payment?.id) {
-            await capturePaymentWorkflow(req.scope).run({
-              input: { payment_id: payment.id },
-            })
-          }
-        }
-      } catch (captureErr) {
+        const eventBus = req.scope.resolve(Modules.EVENT_BUS)
+        await eventBus.emit([{
+          name: "order.payment_captured",
+          data: { id: orderId },
+        }])
+      } catch (emitErr) {
         // Best-effort — payment was already charged by Openpay
         const logger = req.scope.resolve<{ error: (msg: string) => void }>("logger")
-        logger?.error?.(`capturePayment error for order ${orderId}: ${captureErr instanceof Error ? captureErr.message : String(captureErr)}`)
+        logger?.error?.(`Failed to emit order.payment_captured for order ${orderId}: ${emitErr instanceof Error ? emitErr.message : String(emitErr)}`)
       }
     }
 
