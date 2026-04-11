@@ -1,5 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { completeCartWorkflow } from "@medusajs/medusa/core-flows"
+import { completeCartWorkflow, capturePaymentWorkflow } from "@medusajs/medusa/core-flows"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -89,6 +89,35 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const { result } = await completeCartWorkflow(req.scope).run({
       input: { id: cartId },
     })
+
+    // Openpay charges immediately during authorizePayment — Medusa won't auto-emit
+    // order.payment_captured unless we explicitly call capturePaymentWorkflow.
+    // This triggers the envia-fulfillment subscriber downstream.
+    const orderId = (result as any)?.order?.id ?? (result as any)?.id
+    if (orderId) {
+      try {
+        const { data: orders } = await query.graph({
+          entity: "order",
+          filters: { id: orderId },
+          fields: ["id", "payment_collections.payments.id"],
+        })
+        const payments = (orders?.[0] as any)?.payment_collections
+          ?.flatMap((pc: any) => pc.payments ?? []) ?? []
+
+        for (const payment of payments) {
+          if (payment?.id) {
+            await capturePaymentWorkflow(req.scope).run({
+              input: { payment_id: payment.id },
+            })
+          }
+        }
+      } catch (captureErr) {
+        // Best-effort — payment was already charged by Openpay
+        const logger = req.scope.resolve<{ error: (msg: string) => void }>("logger")
+        logger?.error?.(`capturePayment error for order ${orderId}: ${captureErr instanceof Error ? captureErr.message : String(captureErr)}`)
+      }
+    }
+
     res.json(result)
   } catch (err: unknown) {
     let message = "Cart completion failed"
