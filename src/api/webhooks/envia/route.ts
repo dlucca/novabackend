@@ -124,12 +124,15 @@ async function processEvent(
                 )
                 subject = `Tu pedido #${displayId} fue entregado — Novapatch`
               } else {
+                const failureReason = payload.events?.at(-1)?.description
+
                 html = await renderEmail(
                   React.createElement(OrderDeliveryFailed, {
                     name: customerName,
                     displayId,
                     trackingNumber,
                     status: status as "failed" | "returned",
+                    failureReason,
                   })
                 )
                 subject = `Problema con la entrega de tu pedido #${displayId} — Novapatch`
