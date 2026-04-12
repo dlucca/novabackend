@@ -80,11 +80,10 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
 
     const openpayTokenId = paymentSessionData.openpay_token_id as string | undefined
 
-    // Use console.log directly — this.logger_ may not appear in Railway logs
-    console.log(`[Openpay] authorizePayment called. token=${openpayTokenId ?? "NONE"} sessionData keys=${Object.keys(paymentSessionData).join(",")}`)
+    this.logger_.info(`[Openpay] authorizePayment called. token=${openpayTokenId ? "present" : "NONE"} sessionData keys=${Object.keys(paymentSessionData).join(",")}`)
 
     if (!openpayTokenId) {
-      console.error("[Openpay] MISSING openpay_token_id")
+      this.logger_.error("[Openpay] MISSING openpay_token_id")
       return { error: "Missing openpay_token_id in payment session data", status: PaymentSessionStatus.ERROR, data: {} }
     }
 
@@ -93,10 +92,10 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
     const amountMajor = (paymentSessionData._payment_amount as number) ?? ctx.amount ?? 0
     const currencyCode = ((paymentSessionData._currency_code as string) ?? ctx.currency_code ?? "mxn").toUpperCase()
 
-    console.log(`[Openpay] amount=${amountMajor} currency=${currencyCode} customer=${customer?.email ?? "none"}`)
+    this.logger_.info(`[Openpay] amount=${amountMajor} currency=${currencyCode} customer=${customer?.email ?? "none"}`)
 
     if (amountMajor <= 0) {
-      console.error(`[Openpay] INVALID AMOUNT: ${amountMajor}`)
+      this.logger_.error(`[Openpay] INVALID AMOUNT: ${amountMajor}`)
       return { error: "Invalid payment amount: must be greater than 0", status: PaymentSessionStatus.ERROR, data: {} }
     }
 
@@ -113,7 +112,7 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
         const customerLastName = (paymentSessionData._customer_last_name as string) ?? customer?.last_name ?? ""
 
         if (!customerEmail) {
-          console.error("[Openpay] No customer email available")
+          this.logger_.error("[Openpay] No customer email available")
           return { error: "Customer email is required for payment", status: PaymentSessionStatus.ERROR, data: {} }
         }
 
@@ -131,8 +130,11 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
       })
 
       const redirectUrl = (paymentSessionData._redirect_url as string)
-        || process.env.STORE_CORS
-        || "https://novafrontend-theta.vercel.app"
+        || process.env.OPENPAY_REDIRECT_URL
+        || ""
+      if (!redirectUrl) {
+        this.logger_.warn("[Openpay] OPENPAY_REDIRECT_URL not set — 3D Secure redirect will be empty")
+      }
 
       const charge = await this.client_.chargeCustomerCard(openpayCustomerId, {
         source_id: card.id,
@@ -154,7 +156,7 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      console.error(`[Openpay] authorizePayment FAILED: ${message}`)
+      this.logger_.error(`[Openpay] authorizePayment FAILED: ${message}`)
       return { error: message, status: PaymentSessionStatus.ERROR, data: { error: message } }
     }
   }
