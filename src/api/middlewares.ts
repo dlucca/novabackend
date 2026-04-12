@@ -22,7 +22,11 @@ const clerkMiddleware = async (
   const clerkSecretKey = process.env.CLERK_SECRET_KEY
 
   if (!clerkSecretKey) {
-    // In dev without Clerk configured, skip auth
+    if (process.env.NODE_ENV === "production") {
+      res.status(503).json({ message: "Authentication service not configured" })
+      return
+    }
+    // Dev bypass — only active outside production
     ;(req as any).clerk_user_id = "dev-user"
     ;(req as any).clerk_email = "dev@novapatch.care"
     next()
