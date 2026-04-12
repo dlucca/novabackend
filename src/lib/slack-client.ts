@@ -13,6 +13,11 @@ export async function sendSlackNotification(blocks: SlackBlock[]): Promise<void>
   })
 
   if (!response.ok) {
-    throw new Error(`Slack webhook failed: ${response.status} ${response.statusText}`)
+    let detail = response.statusText
+    try {
+      const text = await response.text()
+      if (text) detail = text
+    } catch { /* ignore */ }
+    throw new Error(`Slack webhook failed: ${response.status} ${detail}`)
   }
 }
