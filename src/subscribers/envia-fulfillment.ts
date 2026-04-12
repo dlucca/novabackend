@@ -18,7 +18,8 @@ export default async function enviaFulfillmentHandler({
   // (guards against duplicate order.payment_captured events)
   try {
     const fulfillmentModule = container.resolve(Modules.FULFILLMENT)
-    const existing = await fulfillmentModule.listFulfillments({ order_id: orderId })
+    // Cast to any: order_id is a valid runtime filter but not in FilterableFulfillmentProps types
+    const existing = await fulfillmentModule.listFulfillments({ order_id: orderId } as any)
     if (existing.length > 0) {
       logger.info(`[envia-fulfillment] Fulfillment already exists for order ${orderId} — skipping`)
       return
