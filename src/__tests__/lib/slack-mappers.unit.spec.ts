@@ -98,6 +98,13 @@ describe("mapOrderToSlackBlocks", () => {
     expect(text).toContain("x3")
   })
 
+  it("handles null items without throwing", () => {
+    const order = { ...baseOrder, items: null }
+    expect(() => mapOrderToSlackBlocks(order)).not.toThrow()
+    const blocks = mapOrderToSlackBlocks(order)
+    expect(blocks.length).toBeGreaterThan(0)
+  })
+
   it("excludes items with metadata.is_shipping from products list", () => {
     const order = {
       ...baseOrder,
