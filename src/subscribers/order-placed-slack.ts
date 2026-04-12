@@ -15,7 +15,8 @@ export default async function orderPlacedSlackHandler({
     logger = console
   }
 
-  if (!process.env.SLACK_ORDERS_WEBHOOK_URL) {
+  const webhookUrl = process.env.SLACK_ORDERS_WEBHOOK_URL
+  if (!webhookUrl) {
     logger.warn(
       "[order-placed-slack] SLACK_ORDERS_WEBHOOK_URL not configured — skipping notification"
     )
@@ -28,10 +29,8 @@ export default async function orderPlacedSlackHandler({
       relations: ["items", "shipping_address"],
     })) as any
 
-    if (!order) return
-
     const blocks = mapOrderToSlackBlocks(order)
-    await sendSlackNotification(blocks)
+    await sendSlackNotification(webhookUrl, blocks)
 
     logger.info(
       `[order-placed-slack] Notificación enviada para orden #${order.display_id ?? orderId}`
