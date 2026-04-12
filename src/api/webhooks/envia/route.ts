@@ -93,7 +93,7 @@ async function processEvent(
 
     logger.info(`[envia-webhook] Updated fulfillment ${fulfillmentId} status → ${status}`)
 
-    if (status === "delivered" || status === "failed" || status === "returned") {
+    if (status === "in_transit" || status === "delivered" || status === "failed" || status === "returned") {
       const orderId = fulfillment.metadata?.order_id as string | undefined
 
       if (!orderId) {
@@ -110,28 +110,46 @@ async function processEvent(
           const displayId = order?.display_id ?? orderId
 
           if (customerEmail) {
-            let html: string
-            let subject: string
-
-            if (status === "delivered") {
-              html = await renderEmail(
-                React.createElement(OrderDelivered, { name: customerName, displayId, trackingNumber })
-              )
-              subject = `Tu pedido #${displayId} fue entregado — Novapatch`
+            if (status === "in_transit") {
+              // Carrier picked up the package — now it's safe to tell the customer it's on its way.
+              // Emit internal event so the order-shipped-email subscriber handles rendering/sending.
+              const eventBus = container.resolve(Modules.EVENT_BUS)
+              await eventBus.emit([{
+                name: "novapatch.envia.in_transit",
+                data: {
+                  order_id: orderId,
+                  fulfillment_id: fulfillmentId,
+                  tracking_number: trackingNumber,
+                },
+              }])
+              logger.info(`[envia-webhook] in_transit event emitted for order ${orderId}`)
             } else {
-              html = await renderEmail(
-                React.createElement(OrderDeliveryFailed, {
-                  name: customerName,
-                  displayId,
-                  trackingNumber,
-                  status: status as "failed" | "returned",
-                })
-              )
-              subject = `Problema con la entrega de tu pedido #${displayId} — Novapatch`
-            }
+              let html: string
+              let subject: string
 
-            await sendEmail({ to: customerEmail, subject, html })
-            logger.info(`[envia-webhook] Email de ${status} enviado a ${customerEmail} para orden #${displayId}`)
+              if (status === "delivered") {
+                html = await renderEmail(
+                  React.createElement(OrderDelivered, { name: customerName, displayId, trackingNumber })
+                )
+                subject = `Tu pedido #${displayId} fue entregado — Novapatch`
+              } else {
+                const failureReason = payload.events?.at(-1)?.description
+
+                html = await renderEmail(
+                  React.createElement(OrderDeliveryFailed, {
+                    name: customerName,
+                    displayId,
+                    trackingNumber,
+                    status: status as "failed" | "returned",
+                    failureReason,
+                  })
+                )
+                subject = `Problema con la entrega de tu pedido #${displayId} — Novapatch`
+              }
+
+              await sendEmail({ to: customerEmail, subject, html })
+              logger.info(`[envia-webhook] Email de ${status} enviado a ${customerEmail} para orden #${displayId}`)
+            }
           }
         } catch (emailErr) {
           // Never throw from webhook — 200 was already sent to Envia

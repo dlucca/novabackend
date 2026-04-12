@@ -8,7 +8,7 @@ import OrderShipped from "../emails/OrderShipped"
 export default async function orderShippedEmailHandler({
   event,
   container,
-}: SubscriberArgs<{ order_id: string; fulfillment_id: string }>) {
+}: SubscriberArgs<{ order_id: string; fulfillment_id: string; tracking_number?: string }>) {
   const orderId = event.data.order_id
   const logger = container.resolve("logger")
 
@@ -80,8 +80,11 @@ export default async function orderShippedEmailHandler({
   }
 }
 
+// Email is now sent from the Envia webhook when status = "in_transit"
+// (carrier has physically picked up the package). Do not send on
+// fulfillment_created — the label exists but the carrier hasn't collected yet.
 export const config: SubscriberConfig = {
-  event: "order.fulfillment_created",
+  event: "novapatch.envia.in_transit",
   context: {
     subscriberId: "order-shipped-email",
   },

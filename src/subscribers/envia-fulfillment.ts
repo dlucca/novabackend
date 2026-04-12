@@ -31,6 +31,8 @@ export default async function enviaFulfillmentHandler({
   try {
     await enviaCreateFulfillmentWorkflow(container).run({ input: { orderId } })
   } catch (err) {
+    // RNF-01: never throw — the order stays as `paid`; an operator can create
+    // the fulfillment manually. The workflow logs details of each failed step.
     let errMsg: string
     if (err instanceof Error) {
       errMsg = err.message

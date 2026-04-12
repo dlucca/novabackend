@@ -30,7 +30,7 @@ export default function OrderDelivered({ name, displayId, trackingNumber }: Prop
         Tu pedido #{displayId} fue entregado
       </Text>
 
-      <OrderStatusTracker currentStep={3} />
+      <OrderStatusTracker currentStep={2} />
 
       <Hr style={{ borderColor: "#E5E7EB", margin: "4px 0 20px" }} />
 

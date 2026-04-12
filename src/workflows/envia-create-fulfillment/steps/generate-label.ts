@@ -46,6 +46,14 @@ export const generateEnviaLabelStep = createStep(
     const destination = mapAddress(order.shipping_address)
     const items = order.items ?? []
 
+    // Diagnostic: log env config so we can verify in Railway logs
+    logger.info(
+      `[envia-create-fulfillment] Config — ENVIA_API_URL="${process.env.ENVIA_API_URL ?? "NOT SET"}" token_set=${Boolean(process.env.ENVIA_API_TOKEN)}`
+    )
+    logger.info(
+      `[envia-create-fulfillment] Destination: ${JSON.stringify(destination)}`
+    )
+
     // ── 1. Quote all carriers in parallel ────────────────────────────────────
     const carriersToQuote = getCarriersToQuote()
     const rateSettled = await Promise.allSettled(
@@ -56,10 +64,14 @@ export const generateEnviaLabelStep = createStep(
 
     rateSettled.forEach((result, i) => {
       if (result.status === "rejected") {
+        const err = result.reason
+        const msg = err instanceof Error ? err.message : String(err)
+        // Node fetch() TypeErrors carry a `cause` with the underlying OS error (ECONNREFUSED, etc.)
+        const cause = err instanceof Error && (err as any).cause
+          ? String((err as any).cause)
+          : undefined
         logger.warn(
-          `[envia-create-fulfillment] Rate failed for "${carriersToQuote[i]}": ${
-            result.reason instanceof Error ? result.reason.message : String(result.reason)
-          }`
+          `[envia-create-fulfillment] Rate failed for "${carriersToQuote[i]}": ${msg}${cause ? ` (cause: ${cause})` : ""}`
         )
       }
     })
@@ -86,8 +98,12 @@ export const generateEnviaLabelStep = createStep(
         shipment = await client.generateShipment(
           buildShipmentRequest(destination, items, { carrier: rate.carrier, service: rate.service })
         )
+        // Log the raw response so we can verify field names match our type definition
         logger.info(
-          `[envia-create-fulfillment] Label generated — tracking: ${shipment.trackingNumber}, shipmentId: ${shipment.shipmentId}`
+          `[envia-create-fulfillment] Label generated — raw response keys: ${Object.keys(shipment as any).join(", ")}`
+        )
+        logger.info(
+          `[envia-create-fulfillment] Label generated — tracking: ${(shipment as any).trackingNumber ?? (shipment as any).tracking_number ?? "MISSING"}, shipmentId: ${(shipment as any).shipmentId ?? (shipment as any).shipment_id ?? "MISSING"}, label: ${String((shipment as any).label ?? (shipment as any).labelUrl ?? (shipment as any).label_url ?? "MISSING").substring(0, 80)}`
         )
         break
       } catch (err: any) {

@@ -89,6 +89,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const { result } = await completeCartWorkflow(req.scope).run({
       input: { id: cartId },
     })
+
+    // Openpay charges immediately during authorizePayment — capturePaymentWorkflow
+    // is a no-op when the payment is already captured. Emit order.payment_captured
+    // directly so the envia-fulfillment subscriber triggers and generates the label.
+    const orderId = (result as any)?.order?.id ?? (result as any)?.id
+    if (orderId) {
+      try {
+        const eventBus = req.scope.resolve(Modules.EVENT_BUS)
+        await eventBus.emit([{
+          name: "order.payment_captured",
+          data: { id: orderId },
+        }])
+      } catch (emitErr) {
+        // Best-effort — payment was already charged by Openpay
+        const logger = req.scope.resolve<{ error: (msg: string) => void }>("logger")
+        logger?.error?.(`Failed to emit order.payment_captured for order ${orderId}: ${emitErr instanceof Error ? emitErr.message : String(emitErr)}`)
+      }
+    }
+
     res.json(result)
   } catch (err: unknown) {
     let message = "Cart completion failed"
