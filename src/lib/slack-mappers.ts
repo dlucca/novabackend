@@ -72,6 +72,7 @@ export function mapOrderToSlackBlocks(order: any): SlackBlock[] {
     },
     {
       type: "section",
+      // Slack Block Kit limits section fields to 10 max — currently 6
       fields: [
         { type: "mrkdwn", text: `*Orden*\n${displayId}` },
         { type: "mrkdwn", text: `*Fecha*\n${date}` },
