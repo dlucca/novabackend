@@ -2,9 +2,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import crypto from "node:crypto"
-import Redis from "ioredis"
 import * as React from "react"
 import { sendEmail, renderEmail } from "../../../lib/resend"
+import { getRedisClient, TRACKING_KEY_PREFIX } from "../../../lib/redis"
 import OrderDelivered from "../../../emails/OrderDelivered"
 import OrderDeliveryFailed from "../../../emails/OrderDeliveryFailed"
 
@@ -29,14 +29,6 @@ function isDuplicate(hash: string): boolean {
   return true
 }
 
-// Lazy singleton Redis client — reused across requests
-let redisClient: Redis | null = null
-function getRedis(): Redis | null {
-  const url = process.env.REDIS_URL
-  if (!url) return null
-  if (!redisClient) redisClient = new Redis(url, { maxRetriesPerRequest: 1 })
-  return redisClient
-}
 
 type EnviaWebhookPayload = {
   trackingNumber: string
@@ -55,15 +47,32 @@ async function processEvent(
   logger.info(`[envia-webhook] trackingNumber=${trackingNumber} status=${status}`)
 
   try {
-    // Find the fulfillment by scanning labels relation
     const fulfillmentModule = container.resolve(Modules.FULFILLMENT)
-    const fulfillments = await fulfillmentModule.listFulfillments(
-      {},
-      { relations: ["labels"] }
-    )
-    const match = fulfillments.find((f: any) =>
-      f.labels?.some((l: any) => l.tracking_number === trackingNumber)
-    )
+
+    // Fast path: Redis O(1) lookup by tracking number
+    let match: any = null
+    try {
+      const redis = getRedisClient()
+      if (redis) {
+        const fulfillmentId = await redis.get(`${TRACKING_KEY_PREFIX}${trackingNumber}`)
+        if (fulfillmentId) {
+          const fulfillments = await fulfillmentModule.listFulfillments(
+            { id: fulfillmentId },
+            { relations: ["labels"] }
+          )
+          match = fulfillments[0] ?? null
+        }
+      }
+    } catch { /* Redis unavailable — fall through to full scan */ }
+
+    // Fallback: full scan (for legacy fulfillments or Redis miss)
+    if (!match) {
+      logger.warn(`[envia-webhook] Redis miss for tracking ${trackingNumber} — falling back to full scan`)
+      const all = await fulfillmentModule.listFulfillments({}, { relations: ["labels"] })
+      match = all.find((f: any) =>
+        f.labels?.some((l: any) => l.tracking_number === trackingNumber)
+      ) ?? null
+    }
 
     if (!match) {
       logger.warn(`[envia-webhook] No fulfillment found for tracking ${trackingNumber}`)
@@ -161,7 +170,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   // Idempotency: skip duplicate events (RNF-04)
   const hash = eventHash(payload)
-  const redis = getRedis()
+  const redis = getRedisClient()
   if (redis) {
     try {
       const key = `envia:webhook:dedup:${hash}`
