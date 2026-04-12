@@ -66,7 +66,12 @@ export const processBillingStep = createStep(
       return new StepResponse({ skipped: true, reason: "no_customer" }, null)
     }
 
-    const [customer] = await customerService.listCustomers({ id: order.customer_id })
+    let customer: any
+    try {
+      customer = await customerService.retrieveCustomer(order.customer_id)
+    } catch {
+      customer = null
+    }
     if (!customer) {
       logger.error(`${LOG} Customer ${order.customer_id} not found`)
       return new StepResponse({ skipped: true, reason: "customer_not_found" }, null)
@@ -139,11 +144,12 @@ export const processBillingStep = createStep(
       return new StepResponse({ skipped: true, reason: "openpay_not_configured" }, null)
     }
 
+    const openpayClient = new OpenpayClient({ merchantId, privateKey, sandbox })
+
     // 6. Get card to charge (default card, or first available in vault)
     let cardId = customer.metadata?.openpay_default_card_id as string | undefined
     if (!cardId) {
-      const vaultClient = new OpenpayClient({ merchantId, privateKey, sandbox })
-      const cards = await vaultClient.listCards(openpayCustomerId)
+      const cards = await openpayClient.listCards(openpayCustomerId)
       cardId = cards[0]?.id
     }
 
@@ -163,10 +169,9 @@ export const processBillingStep = createStep(
     }
 
     // 7. Charge Openpay
-    const client = new OpenpayClient({ merchantId, privateKey, sandbox })
     let charge: any
     try {
-      charge = await client.chargeCustomerCard(openpayCustomerId, {
+      charge = await openpayClient.chargeCustomerCard(openpayCustomerId, {
         source_id: cardId,
         // unit_price is stored as-is in Medusa (pesos, not centavos)
         amount: subscriptionItem.unit_price,

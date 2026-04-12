@@ -25,6 +25,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       fields: [
         "id",
         "currency_code",
+        "items.id",
         "shipping_methods.id",
         "payment_collection.id",
         "payment_collection.payment_sessions.id",
@@ -41,6 +42,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
+  // Guard: reject checkout if cart has no line items (prevents charging only shipping)
+  if (!cart.items || cart.items.length === 0) {
+    res.status(422).json({ message: "Cart has no items. Add products before checkout." })
+    return
+  }
+
   // ── Workflow 1: add shipping if missing (no extra query needed) ──────────
   const flatShippingOptionId = process.env.FLAT_SHIPPING_OPTION_ID
   const hasShipping = cart.shipping_methods?.length > 0
@@ -50,7 +57,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         input: { cart_id: cartId, options: [{ id: flatShippingOptionId }] },
       })
     } catch (err) {
-      console.warn(`[PaymentSessions] Auto-add shipping failed: ${err instanceof Error ? err.message : String(err)}`)
+      const logger = req.scope.resolve("logger")
+      logger.warn(`[PaymentSessions] Auto-add shipping failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
