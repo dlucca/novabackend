@@ -1,7 +1,8 @@
 import { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import processBillingCycleWorkflow from "../workflows/process-billing-cycle"
 import { SUBSCRIPTION_MODULE } from "../modules/subscription"
+
+const CONCURRENCY = 5
 
 export default async function processDailySubscriptionsJob(
   container: MedusaContainer
@@ -15,12 +16,11 @@ export default async function processDailySubscriptionsJob(
 
   let dueSubscriptions: any[]
   try {
-    // Fetch all active subscriptions and filter by due date in JS.
-    // Counts stay small in phase 1; replace with DB-level filter if needed.
-    const all = await subscriptionService.listSubscriptions({ status: "active" })
-    dueSubscriptions = all.filter(
-      (s: any) => new Date(s.next_billing_date) <= now
-    )
+    // DB-level filter: only fetch active subscriptions that are actually due
+    dueSubscriptions = await subscriptionService.listSubscriptions({
+      status: "active",
+      next_billing_date: { $lte: now },
+    })
   } catch (err) {
     logger.error(
       `[ProcessDailySubscriptions] Failed to list subscriptions: ${
@@ -38,26 +38,31 @@ export default async function processDailySubscriptionsJob(
   let failed = 0
   let skipped = 0
 
-  for (const subscription of dueSubscriptions) {
-    try {
-      const { result } = await processBillingCycleWorkflow(container).run({
-        input: { subscription_id: subscription.id },
-      })
-
-      if ((result as any)?.skipped || (result as any)?.delayed) {
-        skipped++
-      } else if ((result as any)?.failed) {
-        failed++
-      } else {
-        succeeded++
-      }
-    } catch (err) {
-      failed++
-      logger.error(
-        `[ProcessDailySubscriptions] Unhandled error for subscription ${subscription.id}: ${
-          err instanceof Error ? err.message : String(err)
-        }`
+  // Process in parallel batches of CONCURRENCY to avoid overwhelming Openpay or the DB pool
+  for (let i = 0; i < dueSubscriptions.length; i += CONCURRENCY) {
+    const chunk = dueSubscriptions.slice(i, i + CONCURRENCY)
+    const results = await Promise.allSettled(
+      chunk.map((subscription) =>
+        processBillingCycleWorkflow(container).run({
+          input: { subscription_id: subscription.id },
+        })
       )
+    )
+
+    for (const result of results) {
+      if (result.status === "rejected") {
+        failed++
+        logger.error(
+          `[ProcessDailySubscriptions] Unhandled error in billing batch: ${
+            result.reason instanceof Error ? result.reason.message : String(result.reason)
+          }`
+        )
+      } else {
+        const res = (result.value as any)?.result
+        if (res?.skipped || res?.delayed) skipped++
+        else if (res?.failed) failed++
+        else succeeded++
+      }
     }
   }
 

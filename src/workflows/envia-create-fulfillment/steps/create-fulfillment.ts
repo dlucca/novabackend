@@ -2,6 +2,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { createOrderFulfillmentWorkflow, createShipmentWorkflow } from "@medusajs/medusa/core-flows"
 import type { EnviaGenerateResult } from "../../../lib/envia-client"
+import { getRedisClient, TRACKING_KEY_PREFIX, TRACKING_KEY_TTL_SECONDS } from "../../../lib/redis"
 
 export const createMedusaFulfillmentStep = createStep(
   "create-medusa-fulfillment",
@@ -36,6 +37,27 @@ export const createMedusaFulfillmentStep = createStep(
         },
       },
     })
+
+    // Write tracking→fulfillmentId index to Redis for O(1) webhook lookup
+    try {
+      const redis = getRedisClient()
+      if (redis) {
+        await redis.set(
+          `${TRACKING_KEY_PREFIX}${shipment.trackingNumber}`,
+          fulfillment.id,
+          "EX",
+          TRACKING_KEY_TTL_SECONDS
+        )
+        logger.info(
+          `[envia-create-fulfillment] Redis index written: ${TRACKING_KEY_PREFIX}${shipment.trackingNumber} → ${fulfillment.id}`
+        )
+      }
+    } catch (redisErr) {
+      // Non-fatal — webhook will fall back to full scan
+      logger.warn(
+        `[envia-create-fulfillment] Failed to write Redis tracking index: ${redisErr instanceof Error ? redisErr.message : String(redisErr)}`
+      )
+    }
 
     logger.info(
       `[envia-create-fulfillment] Fulfillment ${fulfillment.id} created — registering shipment labels`
