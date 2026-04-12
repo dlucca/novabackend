@@ -144,6 +144,14 @@ async function processEvent(
 }
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
+  // Validate shared secret before doing anything else
+  const envSecret = process.env.ENVIA_WEBHOOK_SECRET
+  const querySecret = (req.query as Record<string, string>)?.secret
+  if (!envSecret || !querySecret || querySecret !== envSecret) {
+    res.status(401).json({ error: "Unauthorized" })
+    return
+  }
+
   // Respond 200 immediately — Envia requires < 5s (RNF-03)
   res.status(200).json({ received: true })
 
