@@ -1,0 +1,8 @@
+{"type":"server-started","port":52086,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:52086","screen_dir":"/Users/dlucca/Projects/Novapatch/novabackend/.superpowers/brainstorm/96138-1775923971/content","state_dir":"/Users/dlucca/Projects/Novapatch/novabackend/.superpowers/brainstorm/96138-1775923971/state"}
+{"type":"screen-added","file":"/Users/dlucca/Projects/Novapatch/novabackend/.superpowers/brainstorm/96138-1775923971/content/tracker-steps.html"}
+{"type":"screen-added","file":"/Users/dlucca/Projects/Novapatch/novabackend/.superpowers/brainstorm/96138-1775923971/content/delivery-failed-reason.html"}
+{"type":"screen-added","file":"/Users/dlucca/Projects/Novapatch/novabackend/.superpowers/brainstorm/96138-1775923971/content/waiting-1.html"}
+{"type":"screen-added","file":"/Users/dlucca/Projects/Novapatch/novabackend/.superpowers/brainstorm/96138-1775923971/content/font-comparison.html"}
+{"type":"screen-added","file":"/Users/dlucca/Projects/Novapatch/novabackend/.superpowers/brainstorm/96138-1775923971/content/confirmation-email-mockup.html"}
+{"type":"screen-added","file":"/Users/dlucca/Projects/Novapatch/novabackend/.superpowers/brainstorm/96138-1775923971/content/confirmation-email-mockup-v2.html"}
+{"type":"server-stopped","reason":"idle timeout"}

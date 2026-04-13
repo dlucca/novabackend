@@ -1,0 +1,145 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+
+<h2>Diseño final — Email de confirmación de pedido</h2>
+<p class="subtitle">Revisa que todo se vea bien antes de implementar. Haz clic en "Aprobar" si está listo.</p>
+
+<div style="margin:24px auto;max-width:560px">
+  <div class="mockup">
+    <div class="mockup-header">Vista previa del email</div>
+    <div class="mockup-body" style="padding:0;background:#f5f5f5">
+
+      <!-- Email container -->
+      <div style="background:#fff;border-radius:8px;margin:24px;padding:32px;font-family:'Outfit',sans-serif">
+
+        <!-- Header: logo -->
+        <div style="text-align:center;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #E5E7EB">
+          <span style="font-size:22px;font-weight:700;color:#003D70;letter-spacing:-0.5px">
+            <span style="color:#E8503A">G</span>novapatch
+          </span>
+        </div>
+
+        <!-- Greeting + order number -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px">
+          <tr>
+            <td>
+              <p style="font-size:22px;font-weight:700;color:#003D70;margin:0 0 4px;font-family:'Outfit',sans-serif">¡Hola, María!</p>
+              <p style="font-size:15px;color:#6B7280;margin:0;font-family:'Outfit',sans-serif">Confirmamos tu pedido</p>
+            </td>
+            <td style="text-align:right;vertical-align:top">
+              <p style="font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:1px;margin:0;font-family:'Outfit',sans-serif">Pedido</p>
+              <p style="font-size:15px;font-weight:700;color:#003D70;margin:4px 0 0;font-family:'Outfit',sans-serif">#1042</p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- 3-step tracker -->
+        <div style="margin:28px 0 20px">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <!-- Step 0: Confirmado (activo) -->
+              <td width="80" style="text-align:center">
+                <div style="width:48px;height:48px;border-radius:50%;background:#E8503A;border:2px solid #E8503A;margin:0 auto;display:flex;align-items:center;justify-content:center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M19 7h-1V6a5 5 0 00-10 0v1H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9a2 2 0 00-2-2zm-7 10a2 2 0 110-4 2 2 0 010 4zm3-10H9V6a3 3 0 016 0v1z"/></svg>
+                </div>
+              </td>
+              <td style="vertical-align:middle;padding-bottom:6px">
+                <div style="height:2px;background:#E5E7EB"></div>
+              </td>
+              <!-- Step 1: En camino -->
+              <td width="80" style="text-align:center">
+                <div style="width:48px;height:48px;border-radius:50%;background:transparent;border:2px solid #E5E7EB;margin:0 auto;display:flex;align-items:center;justify-content:center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2"><path d="M1 3h15v13H1zM16 8h4l3 3v6h-7V8zM5.5 21a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm13 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg>
+                </div>
+              </td>
+              <td style="vertical-align:middle;padding-bottom:6px">
+                <div style="height:2px;background:#E5E7EB"></div>
+              </td>
+              <!-- Step 2: Entregado -->
+              <td width="80" style="text-align:center">
+                <div style="width:48px;height:48px;border-radius:50%;background:transparent;border:2px solid #E5E7EB;margin:0 auto;display:flex;align-items:center;justify-content:center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align:center;padding-top:8px"><span style="font-size:10px;color:#E8503A;font-weight:700;font-family:'Outfit',sans-serif">Confirmado</span></td>
+              <td></td>
+              <td style="text-align:center;padding-top:8px"><span style="font-size:10px;color:#9CA3AF;font-family:'Outfit',sans-serif">En camino</span></td>
+              <td></td>
+              <td style="text-align:center;padding-top:8px"><span style="font-size:10px;color:#9CA3AF;font-family:'Outfit',sans-serif">Entregado</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #E5E7EB;margin:4px 0 20px">
+
+        <!-- Shipping info -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px">
+          <tr>
+            <td style="vertical-align:top;padding-right:16px;width:50%">
+              <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin:0 0 6px;font-family:'Outfit',sans-serif">Método de envío</p>
+              <p style="font-size:14px;color:#003D70;font-weight:600;margin:0 0 4px;font-family:'Outfit',sans-serif">Envío estándar</p>
+              <p style="font-size:13px;color:#6B7280;margin:0;font-family:'Outfit',sans-serif">3–5 días hábiles</p>
+            </td>
+            <td style="vertical-align:top;width:50%">
+              <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin:0 0 6px;font-family:'Outfit',sans-serif">Dirección de envío</p>
+              <p style="font-size:14px;color:#003D70;font-weight:600;margin:0 0 4px;font-family:'Outfit',sans-serif">María Grasset</p>
+              <p style="font-size:13px;color:#6B7280;margin:0 0 2px;font-family:'Outfit',sans-serif">Laguna de Mayran 166</p>
+              <p style="font-size:13px;color:#6B7280;margin:0;font-family:'Outfit',sans-serif">Miguel Hidalgo, CDMX, 11320</p>
+            </td>
+          </tr>
+        </table>
+
+        <hr style="border:none;border-top:1px solid #E5E7EB;margin:0 0 20px">
+
+        <!-- Items -->
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin:0 0 12px;font-family:'Outfit',sans-serif">Detalle</p>
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:2px solid #003D70">
+          <tr style="border-bottom:1px solid #E5E7EB">
+            <td style="font-size:14px;color:#1F2937;padding:10px 0;font-family:'Outfit',sans-serif">
+              Shield
+            </td>
+            <td style="text-align:center;width:48px;font-size:14px;color:#9CA3AF;padding:10px 0;font-family:'Outfit',sans-serif">×1</td>
+            <td style="text-align:right;width:90px;font-size:14px;font-weight:600;color:#1F2937;padding:10px 0;font-family:'Outfit',sans-serif">$750</td>
+          </tr>
+        </table>
+
+        <!-- Total -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:2px solid #003D70;margin-bottom:24px">
+          <tr>
+            <td style="padding:12px 0 0;font-family:'Outfit',sans-serif"></td>
+            <td style="text-align:right;padding:12px 8px 0 0;font-size:15px;font-weight:700;color:#003D70;font-family:'Outfit',sans-serif">Total</td>
+            <td style="text-align:right;width:90px;padding:12px 0 0;font-size:15px;font-weight:700;color:#003D70;font-family:'Outfit',sans-serif">$750</td>
+          </tr>
+        </table>
+
+        <!-- NO button (removed) -->
+
+        <!-- Footer -->
+        <div style="text-align:center;margin-top:32px;padding-top:20px;border-top:1px solid #E5E7EB">
+          <p style="font-size:12px;color:#9CA3AF;margin:0 0 6px;font-family:'Outfit',sans-serif;font-style:italic">
+            bienestar que no interrumpe tu día
+          </p>
+          <p style="font-size:13px;color:#6B7280;margin:0;font-family:'Outfit',sans-serif">
+            Novapatch · Ciudad de México ·
+            <a href="https://novapatch.care" style="color:#003D70;text-decoration:none">novapatch.care</a>
+          </p>
+          <p style="font-size:11px;color:#9CA3AF;margin:6px 0 0;font-family:'Outfit',sans-serif">
+            © 2025 Novapatch. Todos los derechos reservados.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;text-align:center">
+    <div class="option" data-choice="approved" onclick="toggleSelect(this)" style="display:inline-flex;align-items:center;gap:10px;padding:14px 28px;border-radius:8px;cursor:pointer;background:#F0FDF4;border:2px solid #E5E7EB">
+      <div class="letter" style="background:#15803D;color:#fff;width:28px;height:28px;font-size:13px">✓</div>
+      <div class="content"><h3 style="margin:0;font-size:15px;color:#15803D">Aprobar diseño</h3></div>
+    </div>
+  </div>
+</div>
