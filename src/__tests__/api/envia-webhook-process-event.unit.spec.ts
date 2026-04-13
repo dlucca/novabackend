@@ -213,7 +213,10 @@ describe("processEvent — status=failed / returned", () => {
 
   it("status=returned → sendEmail called (same path as failed)", async () => {
     await processEvent({ trackingNumber: TRACKING, status: "returned" }, makeContainer())
-    expect(resendLib.sendEmail).toHaveBeenCalled()
+    expect(resendLib.renderEmail).toHaveBeenCalled()
+    expect(resendLib.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: expect.stringContaining("Problema con la entrega") })
+    )
   })
 })
 
