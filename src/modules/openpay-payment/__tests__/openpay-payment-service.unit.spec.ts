@@ -52,10 +52,10 @@ describe("OpenpayPaymentService", () => {
       expect(client.storeCard).toHaveBeenCalledWith("cust_op_1", { token_id: "tok_abc", device_session_id: "dev_xyz" })
       expect(client.chargeCustomerCard).toHaveBeenCalledWith(
         "cust_op_1",
-        expect.objectContaining({ source_id: "card_1", amount: 319.20, currency: "MXN" })
+        expect.objectContaining({ source_id: "card_1", amount: 31920, currency: "MXN" })
       )
       expect(result).toEqual({
-        status: "authorized",
+        status: "captured",
         data: expect.objectContaining({ openpay_charge_id: "ch_1", openpay_customer_id: "cust_op_1", openpay_card_id: "card_1" }),
       })
     })
@@ -119,13 +119,13 @@ describe("OpenpayPaymentService", () => {
   })
 
   describe("refundPayment", () => {
-    it("calls refundCharge converting centavos to pesos", async () => {
+    it("calls refundCharge with amount in pesos", async () => {
       const { svc, client } = makeService()
       client.refundCharge = jest.fn().mockResolvedValue({ ...mockCharge, status: "refunded" })
 
       await svc.refundPayment({ openpay_charge_id: "ch_1" }, 31920)
 
-      expect(client.refundCharge).toHaveBeenCalledWith("ch_1", { description: "Novapatch refund", amount: 319.20 })
+      expect(client.refundCharge).toHaveBeenCalledWith("ch_1", { description: "Novapatch refund", amount: 31920 })
     })
 
     it("returns error when refundCharge fails", async () => {

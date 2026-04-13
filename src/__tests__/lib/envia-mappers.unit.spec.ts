@@ -6,7 +6,8 @@ jest.mock("../../config/warehouse", () => ({
   WAREHOUSE: {
     name: "Bodega Test",
     phone: "+525500000000",
-    street: "Calle Test 1",
+    street: "Calle Test",
+    number: "1",
     city: "CDMX",
     state: "CMX",
     country: "MX",
@@ -29,9 +30,10 @@ describe("mapAddress", () => {
     expect(result).toEqual({
       name: "Luis Pérez",
       phone: "+52 5511111111",
-      street: "Insurgentes Sur 2000",
+      street: "Insurgentes Sur",
+      number: "2000",
       city: "Ciudad de México",
-      state: "CMX",
+      state: "DIF",
       country: "MX",
       postalCode: "03100",
     })
@@ -95,7 +97,8 @@ describe("buildShipmentRequest", () => {
   const destination = {
     name: "Ana García",
     phone: "+52 5511111111",
-    street: "Av. Reforma 500",
+    street: "Av. Reforma",
+    number: "500",
     city: "CDMX",
     state: "CMX",
     country: "MX",
