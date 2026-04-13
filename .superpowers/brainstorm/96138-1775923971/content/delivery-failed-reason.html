@@ -1,0 +1,45 @@
+<h2>Email de entrega no efectuada — ¿cómo mostrar el motivo?</h2>
+<p class="subtitle">El transportista (Envia/99minutos) manda una razón cuando falla la entrega. ¿Cómo la mostramos?</p>
+
+<div class="options" style="margin-top:24px">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Motivo del transportista (texto directo)</h3>
+      <div style="background:#FEF2F2;border-radius:8px;padding:16px 20px;margin:12px 0;border-left:4px solid #DC2626">
+        <p style="font-size:13px;color:#DC2626;font-weight:600;margin:0 0 4px">Entrega fallida</p>
+        <p style="font-size:13px;color:#6B7280;margin:0 0 4px">Guía: 1Z999AA10123456784</p>
+        <p style="font-size:13px;color:#6B7280;margin:0"><strong>Motivo:</strong> Destinatario no encontrado en domicilio</p>
+      </div>
+      <p style="font-size:12px;color:#9CA3AF;margin:0">Muestra el texto exacto del carrier. Simple, pero puede ser técnico o en inglés.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Mensaje amigable + motivo en detalle</h3>
+      <div style="background:#FEF2F2;border-radius:8px;padding:16px 20px;margin:12px 0;border-left:4px solid #DC2626">
+        <p style="font-size:13px;color:#DC2626;font-weight:600;margin:0 0 4px">No pudimos entregar tu pedido</p>
+        <p style="font-size:13px;color:#6B7280;margin:0 0 8px">El transportista intentó entregarlo pero no fue posible completarlo.</p>
+        <p style="font-size:11px;color:#9CA3AF;margin:0">Detalle del transportista: Destinatario no encontrado en domicilio</p>
+      </div>
+      <p style="font-size:12px;color:#9CA3AF;margin:0">Texto principal siempre amigable; el motivo raw queda como detalle secundario.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Solo el tipo de falla (sin motivo raw)</h3>
+      <div style="background:#FEF2F2;border-radius:8px;padding:16px 20px;margin:12px 0;border-left:4px solid #DC2626">
+        <p style="font-size:13px;color:#DC2626;font-weight:600;margin:0 0 4px">Nadie en casa al momento de la entrega</p>
+        <p style="font-size:13px;color:#6B7280;margin:0 0 4px">Guía: 1Z999AA10123456784</p>
+        <p style="font-size:13px;color:#6B7280;margin:0">Te contactaremos para coordinar una nueva entrega.</p>
+      </div>
+      <p style="font-size:12px;color:#9CA3AF;margin:0">El motivo del carrier se traduce a texto amigable en el backend. Más trabajo, mejor UX.</p>
+    </div>
+  </div>
+
+</div>

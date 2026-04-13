@@ -37,7 +37,7 @@ type EnviaWebhookPayload = {
   events?: Array<{ timestamp: string; description: string; location?: string }>
 }
 
-async function processEvent(
+export async function processEvent(
   payload: EnviaWebhookPayload,
   container: any
 ): Promise<void> {
