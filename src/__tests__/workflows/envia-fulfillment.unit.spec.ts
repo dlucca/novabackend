@@ -4,7 +4,7 @@ import { TRACKING_KEY_PREFIX } from "../../lib/redis"
 
 // ── Module-level mocks ────────────────────────────────────────────────────────
 
-const mockEnviaClientInstance = {
+var mockEnviaClientInstance = {
   getRate: jest.fn(),
   generateShipment: jest.fn(),
   cancelShipment: jest.fn(),
@@ -261,6 +261,10 @@ describe("generateEnviaLabelStep", () => {
     mockEnviaClientInstance.getRate.mockResolvedValue(baseRate)
     mockEnviaClientInstance.generateShipment.mockResolvedValue(baseShipment)
     mockEnviaClientInstance.cancelShipment.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    delete process.env.ENVIA_CARRIERS
   })
 
   it("single carrier succeeds → returns shipment result", async () => {
