@@ -310,15 +310,16 @@ describe("resumeSubscriptionStep", () => {
 
   it("paused → next_billing_date = today + interval_days", async () => {
     const before = new Date()
-    const { newNextBillingDate } = await runResume(makeService(), { subscription_id: SUB_ID })
+    await runResume(makeService(), { subscription_id: SUB_ID })
     const expectedMin = new Date(before)
     expectedMin.setDate(expectedMin.getDate() + 30)
     expectedMin.setSeconds(expectedMin.getSeconds() - 1)
     const expectedMax = new Date(before)
     expectedMax.setDate(expectedMax.getDate() + 30)
     expectedMax.setSeconds(expectedMax.getSeconds() + 1)
-    expect(newNextBillingDate.getTime()).toBeGreaterThanOrEqual(expectedMin.getTime())
-    expect(newNextBillingDate.getTime()).toBeLessThanOrEqual(expectedMax.getTime())
+    const callArg = mockSubscriptionService.updateSubscriptions.mock.calls[0][0]
+    expect(callArg.next_billing_date.getTime()).toBeGreaterThanOrEqual(expectedMin.getTime())
+    expect(callArg.next_billing_date.getTime()).toBeLessThanOrEqual(expectedMax.getTime())
   })
 
   it("active → throws INVALID_DATA (only paused can be resumed)", async () => {
@@ -398,5 +399,10 @@ describe("updateFrequencyStep", () => {
       id: SUB_ID,
       interval_days: 30,
     })
+  })
+
+  it("compensation with null → does not call updateSubscriptions", async () => {
+    await runUpdateFrequencyCompensation(makeService(), null)
+    expect(mockSubscriptionService.updateSubscriptions).not.toHaveBeenCalled()
   })
 })
