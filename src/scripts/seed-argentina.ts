@@ -28,6 +28,7 @@ export default async function seedArgentina({ container }: ExecArgs) {
   logger.info("[seed-argentina] Updating store supported currencies...")
   const [store] = await storeService.listStores()
   const existingCurrencies = store.supported_currencies ?? []
+  // Medusa's supported_currencies returns a mixed DTO type — any is pragmatic here
   const hasArs = existingCurrencies.some((c: any) => c.currency_code === "ars")
 
   if (!hasArs) {
