@@ -1,5 +1,5 @@
 import { Modules } from "@medusajs/framework/utils"
-import { mapOrderToSlackBlocks } from "../lib/slack-mappers"
+import { mapFulfillmentToSlackBlocks } from "../lib/slack-mappers"
 import { sendSlackNotification } from "../lib/slack-client"
 
 export default async function ({ container }: { container: any }) {
@@ -30,7 +30,8 @@ export default async function ({ container }: { container: any }) {
     return
   }
 
-  const blocks = mapOrderToSlackBlocks(order)
+  const labelUrl = process.env.TEST_LABEL_URL ?? "https://envia.com/label/test-placeholder.pdf"
+  const blocks = mapFulfillmentToSlackBlocks(order, labelUrl)
   await sendSlackNotification(webhookUrl, blocks)
 
   logger.info("[test-slack] Done — check your Slack channel")
