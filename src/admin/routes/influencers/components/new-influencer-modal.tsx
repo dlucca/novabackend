@@ -59,11 +59,6 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
             value: discountValue,
             allocation: "each",
           },
-          metadata: {
-            type: "influencer",
-            influencer_name: form.influencer_name.trim(),
-            handle: form.handle.trim(),
-          },
         }),
       })
 
@@ -81,7 +76,8 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: `Influencer ${code}`,
+          // INF|Name|@handle encodes influencer info — parsed by the admin UI
+          name: `INF|${form.influencer_name.trim()}|${form.handle.trim()}`,
           campaign_identifier: `influencer-${code.toLowerCase()}`,
           starts_at: new Date().toISOString(),
           ends_at: new Date(form.ends_at + "T23:59:59").toISOString(),

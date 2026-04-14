@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Drawer, Heading, Text, Button } from "@medusajs/ui"
 import { computeRevenue } from "../lib/metrics"
+import { parseInfluencerCampaign } from "../types"
 import type { InfluencerPromotion } from "../types"
 
 type Order = {
@@ -60,7 +61,9 @@ export function InfluencerDetailDrawer({ promotion, onClose }: Props) {
       <Drawer.Content>
         <Drawer.Header>
           <Drawer.Title>
-            {promotion?.metadata?.influencer_name ?? promotion?.code}
+            {parseInfluencerCampaign(promotion?.campaigns?.[0]?.name).influencer_name !== "—"
+              ? parseInfluencerCampaign(promotion?.campaigns?.[0]?.name).influencer_name
+              : promotion?.code}
           </Drawer.Title>
         </Drawer.Header>
 

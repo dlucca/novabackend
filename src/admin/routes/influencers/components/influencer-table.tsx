@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Table, Badge, Button, Text } from "@medusajs/ui"
 import { computeRevenue } from "../lib/metrics"
+import { isInfluencerPromotion, parseInfluencerCampaign } from "../types"
 import type { InfluencerPromotion } from "../types"
 
 type Props = {
@@ -22,7 +23,7 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
       try {
         // Fetch promotions with campaigns and application_method
         const res = await fetch(
-          "/admin/promotions?fields=id,code,status,usage_count,metadata,*campaigns,*application_method&limit=200",
+          "/admin/promotions?fields=id,code,status,usage_count,*campaigns,*application_method&limit=200",
           { credentials: "include" }
         )
         if (!res.ok) {
@@ -31,9 +32,7 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
         }
         const json = await res.json()
         const all: InfluencerPromotion[] = json.promotions ?? []
-        const influencers = all.filter(
-          (p) => p.metadata?.type === "influencer"
-        )
+        const influencers = all.filter(isInfluencerPromotion)
         setPromotions(influencers)
 
         // Fetch revenue: get orders with promotions and sum by code
@@ -128,16 +127,18 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
             currency: "MXN",
           }).format(revenue / 100)
 
+          const { influencer_name, handle } = parseInfluencerCampaign(campaign?.name)
+
           return (
             <Table.Row key={promo.id}>
               <Table.Cell>
                 <Text size="small" weight="plus">
-                  {promo.metadata?.influencer_name ?? "—"}
+                  {influencer_name}
                 </Text>
               </Table.Cell>
               <Table.Cell>
                 <Text size="small" className="text-ui-fg-muted">
-                  {promo.metadata?.handle ?? "—"}
+                  {handle}
                 </Text>
               </Table.Cell>
               <Table.Cell>
