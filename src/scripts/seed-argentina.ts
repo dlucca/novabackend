@@ -32,15 +32,14 @@ export default async function seedArgentina({ container }: ExecArgs) {
   const hasArs = existingCurrencies.some((c: any) => c.currency_code === "ars")
 
   if (!hasArs) {
+    // listStores() doesn't populate supported_currencies with is_default reliably.
+    // Hardcode the full list: MXN stays default, add ARS.
     await updateStoresWorkflow(container).run({
       input: {
         selector: { id: store.id },
         update: {
           supported_currencies: [
-            ...existingCurrencies.map((c: any) => ({
-              currency_code: c.currency_code,
-              is_default: c.is_default ?? false,
-            })),
+            { currency_code: "mxn", is_default: true },
             { currency_code: "ars", is_default: false },
           ],
         },
