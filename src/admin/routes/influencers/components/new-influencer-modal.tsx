@@ -57,7 +57,7 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
             type: "percentage",
             target_type: "order",
             value: discountValue,
-            allocation: "each",
+            allocation: "across",
           },
         }),
       })
