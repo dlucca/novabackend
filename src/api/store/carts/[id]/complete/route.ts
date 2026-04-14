@@ -61,6 +61,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const paymentAmount = cart.total ?? session.amount ?? cart.payment_collection?.amount
+  if (!paymentAmount) {
+    res.status(422).json({ message: "Cart has no chargeable amount" })
+    return
+  }
   logger.info(`[CompleteCart] cart.total=${cart.total} session.amount=${session.amount} using amount=${paymentAmount}`)
 
   // Initialize Openpay client from env vars
@@ -86,6 +90,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       })
       openpayCustomerId = openpayCustomer.id
       logger.info(`[CompleteCart] Created Openpay customer — id=${openpayCustomerId}`)
+      // Persist Openpay customer ID to Medusa customer metadata for future checkouts
+      if (cart.customer?.id) {
+        try {
+          const customerModuleService = req.scope.resolve(Modules.CUSTOMER)
+          await (customerModuleService as any).updateCustomers(cart.customer.id, {
+            metadata: { ...(cart.customer.metadata ?? {}), openpay_customer_id: openpayCustomerId },
+          })
+          logger.info(`[CompleteCart] Persisted openpay_customer_id to customer metadata — customer_id=${cart.customer.id}`)
+        } catch (metaErr) {
+          // Non-fatal: log and continue. The charge will still succeed; customer ID
+          // will simply be re-created on the next checkout for this customer.
+          logger.error(`[CompleteCart] Failed to persist openpay_customer_id to customer metadata: ${metaErr instanceof Error ? metaErr.message : String(metaErr)}`)
+        }
+      }
     }
 
     // 2. Store card using the one-time token
@@ -167,7 +185,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     } else if (typeof err === "string") {
       message = err
     }
-    logger.error(`[CompleteCart] Error for cart ${cartId}: ${JSON.stringify(err)}`)
+    logger.error(`[CompleteCart] Error for cart ${cartId}: ${err instanceof Error ? err.stack ?? err.message : JSON.stringify(err)}`)
     res.status(422).json({ message })
   }
 }
