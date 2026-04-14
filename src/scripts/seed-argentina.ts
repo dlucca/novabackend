@@ -16,6 +16,15 @@ const ARS_PLAN_PRICES: Record<string, number> = {
   quarterly: 54000,  // 10% off
 }
 
+// MXN prices to preserve — must include both currencies in the update
+// or updateProductVariantsWorkflow will overwrite and delete the MXN prices.
+const MXN_PLAN_PRICES: Record<string, number> = {
+  once:      750,
+  monthly:   600,   // 20% off
+  bimonthly: 638,   // 15% off — Math.round(750 * 0.85)
+  quarterly: 675,   // 10% off
+}
+
 export default async function seedArgentina({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const storeService = container.resolve(Modules.STORE)
@@ -111,7 +120,10 @@ export default async function seedArgentina({ container }: ExecArgs) {
         input: {
           product_variants: [{
             id: variant.id,
-            prices: [{ currency_code: "ars", amount: ARS_PLAN_PRICES[plan] }],
+            prices: [
+              { currency_code: "mxn", amount: MXN_PLAN_PRICES[plan] },
+              { currency_code: "ars", amount: ARS_PLAN_PRICES[plan] },
+            ],
           }],
         },
       })
