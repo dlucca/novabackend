@@ -148,7 +148,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     })
 
     // 5. Detect 3DS: Openpay sets payment_method.url when bank requires authentication
-    if (charge.payment_method?.url) {
+    if (charge.status === "charge_pending" && charge.payment_method?.url) {
       logger.info(`[CompleteCart] 3DS required — charge_id=${charge.id}`)
       res.json({ type: "redirect", redirect_url: charge.payment_method.url })
       return
