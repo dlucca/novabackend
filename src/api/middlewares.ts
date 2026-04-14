@@ -5,6 +5,7 @@ import {
   MedusaResponse,
 } from "@medusajs/framework/http"
 import { verifyToken, createClerkClient } from "@clerk/backend"
+import cors from "cors"
 
 const clerkMiddleware = async (
   req: MedusaRequest,
@@ -64,6 +65,13 @@ const rootRedirectMiddleware = (
   next()
 }
 
+// CORS for /promotions/* — same origin as the storefront but outside /store/*
+// so the publishable API key check doesn't block coupon validation requests.
+const promotionsCors = cors({
+  origin: (process.env.STORE_CORS ?? "*").split(",").map((o) => o.trim()),
+  credentials: true,
+})
+
 export default defineMiddlewares({
   routes: [
     {
@@ -73,6 +81,14 @@ export default defineMiddlewares({
     {
       matcher: "/store/me/*",
       middlewares: [clerkMiddleware],
+    },
+    {
+      matcher: "/promotions*",
+      middlewares: [promotionsCors],
+    },
+    {
+      matcher: "/shipping-options*",
+      middlewares: [promotionsCors],
     },
   ],
 })
