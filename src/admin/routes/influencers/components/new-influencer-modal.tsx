@@ -9,6 +9,13 @@ import {
   Text,
 } from "@medusajs/ui"
 
+function getAdminHeaders(): Record<string, string> {
+  const token = localStorage.getItem("medusa_auth_token")
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  return headers
+}
+
 type Props = {
   open: boolean
   onClose: () => void
@@ -47,8 +54,7 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
       // Step 1: Create the campaign (date range / expiration)
       const campaignRes = await fetch("/admin/campaigns", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           // INF|Name|@handle encodes influencer info — parsed by the admin UI
           name: `INF|${form.influencer_name.trim()}|${form.handle.trim()}`,
@@ -69,8 +75,7 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
       // Step 2: Create the promotion linked to the campaign
       const promoRes = await fetch("/admin/promotions", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           code,
           type: "standard",

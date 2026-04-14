@@ -4,6 +4,12 @@ import { computeRevenue } from "../lib/metrics"
 import { isInfluencerPromotion, parseInfluencerCampaign } from "../types"
 import type { InfluencerPromotion } from "../types"
 
+// Reads the admin JWT stored by the Medusa admin panel on login
+function getAdminHeaders(): Record<string, string> {
+  const token = localStorage.getItem("medusa_auth_token")
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 type Props = {
   onNew: () => void
   onSelect: (promo: InfluencerPromotion) => void
@@ -21,13 +27,13 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
       setLoading(true)
       setError(null)
       try {
-        // Fetch promotions
-        const res = await fetch(
-          "/admin/promotions",
-          { credentials: "include" }
-        )
+        const headers = getAdminHeaders()
+
+        // Fetch promotions with admin JWT
+        const res = await fetch("/admin/promotions?limit=500", { headers })
         if (!res.ok) {
-          setError("No se pudieron cargar los códigos. Intenta de nuevo.")
+          const body = await res.json().catch(() => ({}))
+          setError(body?.message ?? "No se pudieron cargar los códigos. Intenta de nuevo.")
           return
         }
         const json = await res.json()
@@ -39,7 +45,7 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
         if (influencers.length > 0) {
           const ordersRes = await fetch(
             "/admin/orders?fields=id,total,currency_code,*promotions&limit=500",
-            { credentials: "include" }
+            { headers }
           )
           if (ordersRes.ok) {
             const ordersJson = await ordersRes.json()
@@ -59,6 +65,8 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
             setRevenueMap(map)
           }
         }
+      } catch (err) {
+        setError("No se pudieron cargar los códigos. Intenta de nuevo.")
       } finally {
         setLoading(false)
       }
@@ -111,7 +119,7 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
       </Table.Header>
       <Table.Body>
         {promotions.map((promo) => {
-          const campaign = promo.campaigns?.[0]
+          const campaign = promo.campaign
           const endsAt = campaign?.ends_at
             ? new Date(campaign.ends_at).toLocaleDateString("es-MX", {
                 day: "numeric",
@@ -155,7 +163,7 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
                 </Badge>
               </Table.Cell>
               <Table.Cell>
-                <Text size="small">{promo.usage_count ?? 0}</Text>
+                <Text size="small">{promo.used ?? 0}</Text>
               </Table.Cell>
               <Table.Cell>
                 <Text size="small">{revenueFormatted}</Text>

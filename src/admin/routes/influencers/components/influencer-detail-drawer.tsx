@@ -4,6 +4,11 @@ import { computeRevenue } from "../lib/metrics"
 import { parseInfluencerCampaign } from "../types"
 import type { InfluencerPromotion } from "../types"
 
+function getAdminHeaders(): Record<string, string> {
+  const token = localStorage.getItem("medusa_auth_token")
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 type Order = {
   id: string
   display_id: number
@@ -33,7 +38,7 @@ export function InfluencerDetailDrawer({ promotion, onClose }: Props) {
       try {
         const res = await fetch(
           "/admin/orders?fields=id,display_id,total,currency_code,created_at,*promotions&limit=500",
-          { credentials: "include" }
+          { headers: getAdminHeaders() }
         )
         if (!res.ok) return
         const json = await res.json()
@@ -56,14 +61,15 @@ export function InfluencerDetailDrawer({ promotion, onClose }: Props) {
     currency: "MXN",
   }).format(revenue / 100)
 
+  const campaignName = promotion?.campaign?.name
+  const { influencer_name } = parseInfluencerCampaign(campaignName)
+
   return (
     <Drawer open={!!promotion} onOpenChange={(v) => !v && onClose()}>
       <Drawer.Content>
         <Drawer.Header>
           <Drawer.Title>
-            {parseInfluencerCampaign(promotion?.campaigns?.[0]?.name).influencer_name !== "—"
-              ? parseInfluencerCampaign(promotion?.campaigns?.[0]?.name).influencer_name
-              : promotion?.code}
+            {influencer_name !== "—" ? influencer_name : promotion?.code}
           </Drawer.Title>
         </Drawer.Header>
 

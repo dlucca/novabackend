@@ -12,8 +12,8 @@ export type InfluencerPromotion = {
   id: string
   code: string
   status: string
-  usage_count?: number
-  campaigns: InfluencerCampaign[]
+  used?: number
+  campaign?: InfluencerCampaign | null
   application_method: { value: number } | null
 }
 
@@ -29,5 +29,5 @@ export function parseInfluencerCampaign(name?: string): { influencer_name: strin
 
 // Returns true if this promotion was created as an influencer code
 export function isInfluencerPromotion(promo: InfluencerPromotion): boolean {
-  return promo.campaigns?.[0]?.name?.startsWith("INF|") ?? false
+  return promo.campaign?.name?.startsWith("INF|") ?? false
 }
