@@ -74,12 +74,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   // ── Single post-workflow query: get collection with amount ────────────────
+  // Also fetch cart.total (includes promotion discounts) to use as authoritative amount
   const { data: refreshed } = await query.graph({
     entity: "cart",
     filters: { id: cartId },
     fields: [
       "id",
       "currency_code",
+      "total",
+      "subtotal",
+      "discount_total",
       "payment_collection.id",
       "payment_collection.amount",
       "payment_collection.currency_code",
@@ -96,15 +100,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  const collectionAmount = cart.payment_collection?.amount
+  // Use cart.total (post-promotion) as the authoritative amount.
+  // payment_collection.amount may be stale if a promotion was applied after
+  // the collection was first created.
+  const cartTotal: number = cart.total ?? cart.payment_collection?.amount
   const collectionCurrency = cart.payment_collection?.currency_code ?? cart.currency_code ?? "mxn"
 
-  if (collectionAmount == null) {
+  if (cartTotal == null) {
     res.status(422).json({ message: "Payment collection has no amount. Ensure cart has items." })
     return
   }
 
-  // ── Create payment session if not present ─────────────────────────────────
+  const logger = req.scope.resolve("logger")
+  logger.info(`[PaymentSessions] cart.total=${cartTotal} discount_total=${cart.discount_total ?? 0} collection.amount=${cart.payment_collection?.amount}`)
+
+  // ── Create or update payment session with current cart total ──────────────
   const existingSession = cart.payment_collection?.payment_sessions?.find(
     (s: any) => s.provider_id === "pp_openpay_openpay"
   )
@@ -115,12 +125,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         provider_id: "pp_openpay_openpay",
         data: {},
         currency_code: collectionCurrency,
-        amount: collectionAmount,
+        amount: cartTotal,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create payment session"
       res.status(422).json({ message })
       return
+    }
+  } else {
+    // Session already exists — update its amount to reflect any promotions applied
+    // since the session was first created (e.g. coupon applied after preload)
+    try {
+      await (paymentModuleService as any).updatePaymentSession({
+        id: existingSession.id,
+        amount: cartTotal,
+        currency_code: collectionCurrency,
+        data: existingSession.data ?? {},
+      })
+    } catch (err) {
+      logger.warn(`[PaymentSessions] Could not update existing session amount: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 

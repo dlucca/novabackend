@@ -27,6 +27,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       fields: [
         "id",
         "email",
+        "total",
         "customer.id",
         "customer.email",
         "customer.first_name",
@@ -62,12 +63,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // Inject the Openpay token into the payment session data
+  // Inject the Openpay token into the payment session data.
+  // Use cart.total as the authoritative amount — it reflects applied promotions.
+  // Fallback chain: cart.total → session.amount → payment_collection.amount
+  const paymentAmount = (cart as any).total ?? session.amount ?? cart.payment_collection?.amount
+  const logger = req.scope.resolve("logger")
+  logger.info(`[CompleteCart] cart.total=${(cart as any).total} session.amount=${session.amount} using amount=${paymentAmount}`)
+
   const paymentModuleService = req.scope.resolve(Modules.PAYMENT)
   try {
     await (paymentModuleService as any).updatePaymentSession({
       id: session.id,
-      amount: session.amount ?? cart.payment_collection?.amount,
+      amount: paymentAmount,
       currency_code: session.currency_code ?? cart.payment_collection?.currency_code ?? "mxn",
       data: {
         ...(session.data ?? {}),
