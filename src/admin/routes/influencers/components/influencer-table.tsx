@@ -23,7 +23,7 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
       try {
         // Fetch promotions with campaigns and application_method
         const res = await fetch(
-          "/admin/promotions?fields=id,code,status,usage_count,*campaigns,*application_method&limit=200",
+          "/admin/promotions?fields=id,code,status,*campaigns,*application_method&limit=200",
           { credentials: "include" }
         )
         if (!res.ok) {

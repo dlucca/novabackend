@@ -12,7 +12,7 @@ export type InfluencerPromotion = {
   id: string
   code: string
   status: string
-  usage_count: number
+  usage_count?: number
   campaigns: InfluencerCampaign[]
   application_method: { value: number } | null
 }
