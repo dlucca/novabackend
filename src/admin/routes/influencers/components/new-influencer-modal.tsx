@@ -79,6 +79,7 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
         body: JSON.stringify({
           code,
           type: "standard",
+          status: "active",
           is_automatic: false,
           campaign_id: campaign.id,
           application_method: {
