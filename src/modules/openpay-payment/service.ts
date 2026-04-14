@@ -12,19 +12,6 @@ type InjectedDeps = {
   logger: Logger
 }
 
-type CustomerContext = {
-  id?: string
-  email?: string
-  first_name?: string
-  last_name?: string
-  metadata?: Record<string, unknown>
-}
-
-type PaymentContext = {
-  amount?: number
-  currency_code?: string
-  customer?: CustomerContext
-}
 
 export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
   static identifier = "openpay"
@@ -47,13 +34,8 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
   }
 
   async updatePayment(input: any): Promise<any> {
-    // Pass through the incoming data so updatePaymentSession persists it
-    // (e.g. openpay_token_id, device_session_id injected by /complete route).
-    // Also save amount/currency in data because authorizePayment doesn't
-    // receive them from Medusa's context.
+    // Pass through the incoming data so updatePaymentSession persists it.
     const data = { ...(input?.data ?? {}) }
-    if (input?.amount != null) data._payment_amount = input.amount
-    if (input?.currency_code) data._currency_code = input.currency_code
     return { data }
   }
 
