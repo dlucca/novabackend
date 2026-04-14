@@ -64,102 +64,35 @@ export class OpenpayPaymentService extends AbstractPaymentProvider<Options> {
   // Supports both Medusa v2.13 single-input form and the legacy 2-arg form used in tests:
   //   v2.13:  authorizePayment({ data: sessionData, context: paymentContext })
   //   legacy: authorizePayment(sessionData, paymentContext)
+  //
+  // The charge is pre-created in the /complete route handler.
+  // This method is a passthrough that confirms the pre-existing charge.
   async authorizePayment(input: any, legacyContext?: any): Promise<any> {
     let paymentSessionData: Record<string, unknown>
-    let ctx: PaymentContext
 
     if (legacyContext !== undefined) {
       // Called with 2 args (unit tests)
       paymentSessionData = input ?? {}
-      ctx = legacyContext as PaymentContext
     } else {
       // Called with single DTO (Medusa v2.13)
       paymentSessionData = input?.data ?? {}
-      ctx = (input?.context ?? {}) as PaymentContext
     }
 
-    const openpayTokenId = paymentSessionData.openpay_token_id as string | undefined
+    const chargeId = paymentSessionData.openpay_charge_id as string | undefined
 
-    this.logger_.info(`[Openpay] authorizePayment called. token=${openpayTokenId ? "present" : "NONE"} sessionData keys=${Object.keys(paymentSessionData).join(",")}`)
-
-    if (!openpayTokenId) {
-      this.logger_.error("[Openpay] MISSING openpay_token_id")
-      return { error: "Missing openpay_token_id in payment session data", status: PaymentSessionStatus.ERROR, data: {} }
-    }
-
-    const customer = ctx.customer
-    // Amount/currency may come from context OR from session data (saved by updatePayment)
-    const amountMajor = (paymentSessionData._payment_amount as number) ?? ctx.amount ?? 0
-    const currencyCode = ((paymentSessionData._currency_code as string) ?? ctx.currency_code ?? "mxn").toUpperCase()
-
-    this.logger_.info(`[Openpay] amount=${amountMajor} currency=${currencyCode} customer=${customer?.email ?? "none"}`)
-
-    if (amountMajor <= 0) {
-      this.logger_.error(`[Openpay] INVALID AMOUNT: ${amountMajor}`)
-      return { error: "Invalid payment amount: must be greater than 0", status: PaymentSessionStatus.ERROR, data: {} }
-    }
-
-    // Medusa v2 stores amounts in major units (pesos, not centavos)
-    const amountPesos = amountMajor
-    const deviceSessionId = paymentSessionData.device_session_id as string | undefined
-
-    try {
-      let openpayCustomerId = customer?.metadata?.openpay_customer_id as string | undefined
-
-      if (!openpayCustomerId) {
-        const customerEmail = (paymentSessionData._customer_email as string) ?? customer?.email ?? ""
-        const customerName = (paymentSessionData._customer_name as string) ?? customer?.first_name ?? "Customer"
-        const customerLastName = (paymentSessionData._customer_last_name as string) ?? customer?.last_name ?? ""
-
-        if (!customerEmail) {
-          this.logger_.error("[Openpay] No customer email available")
-          return { error: "Customer email is required for payment", status: PaymentSessionStatus.ERROR, data: {} }
-        }
-
-        const openpayCustomer = await this.client_.createCustomer({
-          name: customerName,
-          last_name: customerLastName,
-          email: customerEmail,
-        })
-        openpayCustomerId = openpayCustomer.id
-      }
-
-      const card = await this.client_.storeCard(openpayCustomerId, {
-        token_id: openpayTokenId,
-        device_session_id: deviceSessionId,
-      })
-
-      const redirectUrl = (paymentSessionData._redirect_url as string)
-        || process.env.OPENPAY_REDIRECT_URL
-        || ""
-      if (!redirectUrl) {
-        this.logger_.warn("[Openpay] OPENPAY_REDIRECT_URL not set — 3D Secure redirect will be empty")
-      }
-
-      const charge = await this.client_.chargeCustomerCard(openpayCustomerId, {
-        source_id: card.id,
-        amount: amountPesos,
-        currency: currencyCode,
-        description: "Novapatch order",
-        device_session_id: deviceSessionId,
-        redirect_url: redirectUrl,
-      })
-
-      // Openpay charges the card immediately — return CAPTURED so Medusa
-      // emits order.payment_captured and triggers downstream fulfillment flows.
+    if (!chargeId) {
+      this.logger_.error("[Openpay] authorizePayment called without openpay_charge_id — charge must be pre-created in route handler")
       return {
-        status: PaymentSessionStatus.CAPTURED,
-        data: {
-          openpay_charge_id: charge.id,
-          openpay_customer_id: openpayCustomerId,
-          openpay_card_id: card.id,
-          medusa_customer_id: customer?.id,
-        },
+        error: "No pre-authorized charge found: openpay_charge_id missing from session data",
+        status: PaymentSessionStatus.ERROR,
+        data: {},
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      this.logger_.error(`[Openpay] authorizePayment FAILED: ${message}`)
-      return { error: message, status: PaymentSessionStatus.ERROR, data: { error: message } }
+    }
+
+    this.logger_.info(`[Openpay] authorizePayment passthrough — charge_id=${chargeId}`)
+    return {
+      status: PaymentSessionStatus.CAPTURED,
+      data: { ...paymentSessionData },
     }
   }
 
