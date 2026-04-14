@@ -21,9 +21,9 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
       setLoading(true)
       setError(null)
       try {
-        // Fetch promotions — let Medusa return default fields
+        // Fetch promotions
         const res = await fetch(
-          "/admin/promotions?limit=200",
+          "/admin/promotions",
           { credentials: "include" }
         )
         if (!res.ok) {
