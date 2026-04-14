@@ -1,23 +1,7 @@
 import { useEffect, useState } from "react"
 import { Table, Badge, Button, Text } from "@medusajs/ui"
 import { computeRevenue } from "../lib/metrics"
-
-type InfluencerPromotion = {
-  id: string
-  code: string
-  status: string
-  usage_count: number
-  metadata: Record<string, string> | null
-  campaigns: Array<{
-    id: string
-    name: string
-    starts_at: string | null
-    ends_at: string | null
-  }>
-  application_method: {
-    value: number
-  } | null
-}
+import type { InfluencerPromotion } from "../types"
 
 type Props = {
   onNew: () => void

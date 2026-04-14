@@ -5,21 +5,7 @@ import { useState } from "react"
 import { InfluencerTable } from "./components/influencer-table"
 import { NewInfluencerModal } from "./components/new-influencer-modal"
 import { InfluencerDetailDrawer } from "./components/influencer-detail-drawer"
-
-type InfluencerPromotion = {
-  id: string
-  code: string
-  status: string
-  usage_count: number
-  metadata: Record<string, string> | null
-  campaigns: Array<{
-    id: string
-    name: string
-    starts_at: string | null
-    ends_at: string | null
-  }>
-  application_method: { value: number } | null
-}
+import type { InfluencerPromotion } from "./types"
 
 const InfluencersPage = () => {
   const [modalOpen, setModalOpen] = useState(false)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Drawer, Heading, Text, Button } from "@medusajs/ui"
 import { computeRevenue } from "../lib/metrics"
+import type { InfluencerPromotion } from "../types"
 
 type Order = {
   id: string
@@ -9,15 +10,6 @@ type Order = {
   currency_code: string
   created_at: string
   promotions?: Array<{ code: string }>
-}
-
-type InfluencerPromotion = {
-  id: string
-  code: string
-  usage_count: number
-  metadata: Record<string, string> | null
-  application_method: { value: number } | null
-  campaigns: Array<{ ends_at: string | null }>
 }
 
 type Props = {
@@ -30,7 +22,11 @@ export function InfluencerDetailDrawer({ promotion, onClose }: Props) {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!promotion) return
+    if (!promotion) {
+      setOrders([])
+      return
+    }
+    setOrders([])
     setLoading(true)
     const load = async () => {
       try {

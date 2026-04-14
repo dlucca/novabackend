@@ -91,7 +91,7 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
 
       if (!campaignRes.ok) {
         const err = await campaignRes.json().catch(() => ({}))
-        toast.error(err?.message ?? "Error al crear la campaña")
+        toast.error(err?.message ?? "Error al crear la campaña. El código fue creado pero sin fecha de expiración. Ve a Promociones en el admin para eliminarlo e intenta de nuevo.")
         return
       }
 

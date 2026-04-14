@@ -1,4 +1,4 @@
-import { computeRevenue } from "../../../src/admin/routes/influencers/lib/metrics"
+import { computeRevenue } from "../../admin/routes/influencers/lib/metrics"
 
 type OrderStub = { total: number; currency_code: string }
 
