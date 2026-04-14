@@ -30,66 +30,57 @@ describe("OpenpayPaymentService", () => {
     })
   })
 
-  describe("authorizePayment", () => {
-    const baseContext = {
-      amount: 31920,
-      currency_code: "mxn",
-      customer: { id: "cust_med_1", email: "ana@test.com", first_name: "Ana", last_name: "Lopez", metadata: {} },
-    }
+  describe("authorizePayment — passthrough", () => {
+    it("returns CAPTURED when openpay_charge_id is present in session data (single-arg form)", async () => {
+      const { svc } = makeService()
+      const sessionData = {
+        openpay_charge_id: "ch_123",
+        openpay_customer_id: "cust_op_1",
+        openpay_card_id: "card_1",
+      }
 
-    it("creates Openpay customer and charges when no existing customer", async () => {
-      const { svc, client } = makeService()
-      client.createCustomer = jest.fn().mockResolvedValue(mockCustomer)
-      client.storeCard = jest.fn().mockResolvedValue(mockCard)
-      client.chargeCustomerCard = jest.fn().mockResolvedValue(mockCharge)
+      const result = await svc.authorizePayment({ data: sessionData, context: {} })
 
-      const result = await svc.authorizePayment(
-        { status: "pending", openpay_token_id: "tok_abc", device_session_id: "dev_xyz" },
-        baseContext as any
-      )
-
-      expect(client.createCustomer).toHaveBeenCalledWith({ name: "Ana", last_name: "Lopez", email: "ana@test.com" })
-      expect(client.storeCard).toHaveBeenCalledWith("cust_op_1", { token_id: "tok_abc", device_session_id: "dev_xyz" })
-      expect(client.chargeCustomerCard).toHaveBeenCalledWith(
-        "cust_op_1",
-        expect.objectContaining({ source_id: "card_1", amount: 31920, currency: "MXN" })
-      )
       expect(result).toEqual({
         status: "captured",
-        data: expect.objectContaining({ openpay_charge_id: "ch_1", openpay_customer_id: "cust_op_1", openpay_card_id: "card_1" }),
+        data: expect.objectContaining({ openpay_charge_id: "ch_123" }),
       })
     })
 
-    it("reuses existing Openpay customer from metadata", async () => {
-      const { svc, client } = makeService()
-      client.createCustomer = jest.fn()
-      client.storeCard = jest.fn().mockResolvedValue(mockCard)
-      client.chargeCustomerCard = jest.fn().mockResolvedValue(mockCharge)
-
-      const context = { ...baseContext, customer: { ...baseContext.customer, metadata: { openpay_customer_id: "cust_existing" } } }
-      await svc.authorizePayment({ status: "pending", openpay_token_id: "tok_def" }, context as any)
-
-      expect(client.createCustomer).not.toHaveBeenCalled()
-      expect(client.storeCard).toHaveBeenCalledWith("cust_existing", expect.objectContaining({ token_id: "tok_def" }))
-    })
-
-    it("returns error when openpay_token_id is missing", async () => {
+    it("returns CAPTURED when openpay_charge_id is present (legacy 2-arg form)", async () => {
       const { svc } = makeService()
-      const result = await svc.authorizePayment({ status: "pending" }, baseContext as any)
-      expect(result).toEqual(expect.objectContaining({ error: expect.stringContaining("openpay_token_id") }))
+      const sessionData = { openpay_charge_id: "ch_456", openpay_customer_id: "cust_1", openpay_card_id: "card_1" }
+
+      const result = await svc.authorizePayment(sessionData, {})
+
+      expect(result).toEqual({
+        status: "captured",
+        data: expect.objectContaining({ openpay_charge_id: "ch_456" }),
+      })
     })
 
-    it("returns error when Openpay charge throws", async () => {
-      const { svc, client } = makeService()
-      client.createCustomer = jest.fn().mockResolvedValue(mockCustomer)
-      client.storeCard = jest.fn().mockResolvedValue(mockCard)
-      client.chargeCustomerCard = jest.fn().mockRejectedValue(new Error("Insufficient funds"))
+    it("returns ERROR when openpay_charge_id is missing from session data", async () => {
+      const { svc } = makeService()
 
-      const result = await svc.authorizePayment(
-        { status: "pending", openpay_token_id: "tok_bad" },
-        baseContext as any
+      const result = await svc.authorizePayment({ data: { some: "other_data" }, context: {} })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          status: "error",
+          error: expect.stringContaining("openpay_charge_id"),
+        })
       )
-      expect(result).toEqual(expect.objectContaining({ error: "Insufficient funds" }))
+    })
+
+    it("logs the passthrough with charge_id", async () => {
+      const { svc } = makeService()
+      const sessionData = { openpay_charge_id: "ch_789" }
+
+      await svc.authorizePayment({ data: sessionData, context: {} })
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining("ch_789")
+      )
     })
   })
 
@@ -143,16 +134,4 @@ describe("OpenpayPaymentService", () => {
     })
   })
 
-  describe("authorizePayment amount guard", () => {
-    it("returns error when amount is 0", async () => {
-      const { svc } = makeService()
-      const context = {
-        amount: 0,
-        currency_code: "mxn",
-        customer: { id: "c1", email: "a@b.com", first_name: "A", last_name: "B", metadata: {} },
-      }
-      const result = await svc.authorizePayment({ status: "pending", openpay_token_id: "tok_abc" }, context as any)
-      expect(result).toEqual(expect.objectContaining({ error: expect.stringContaining("amount") }))
-    })
-  })
 })
