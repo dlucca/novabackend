@@ -17,11 +17,12 @@ export type OpenpayCustomer = {
 
 export type OpenpayCharge = {
   id: string
-  status: "completed" | "in_progress" | "failed" | "refunded"
+  status: "completed" | "in_progress" | "failed" | "refunded" | "charge_pending"
   amount: number
   currency: string
   error_code?: string
   error_message?: string
+  payment_method?: { url: string; type?: string }
 }
 
 type ClientOptions = {
@@ -91,6 +92,7 @@ export class OpenpayClient {
       device_session_id?: string
       order_id?: string
       redirect_url?: string // required for 3D Secure
+      use_3d_secure?: boolean     // nuevo: activa flujo 3DS en Openpay
     }
   ): Promise<OpenpayCharge> {
     return this.request<OpenpayCharge>("POST", `/customers/${customerId}/charges`, {
