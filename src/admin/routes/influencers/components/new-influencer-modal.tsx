@@ -44,7 +44,29 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
 
     setSaving(true)
     try {
-      // Step 1: Create the promotion
+      // Step 1: Create the campaign (date range / expiration)
+      const campaignRes = await fetch("/admin/campaigns", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // INF|Name|@handle encodes influencer info — parsed by the admin UI
+          name: `INF|${form.influencer_name.trim()}|${form.handle.trim()}`,
+          campaign_identifier: `influencer-${code.toLowerCase()}`,
+          starts_at: new Date().toISOString(),
+          ends_at: new Date(form.ends_at + "T23:59:59").toISOString(),
+        }),
+      })
+
+      if (!campaignRes.ok) {
+        const err = await campaignRes.json().catch(() => ({}))
+        toast.error(err?.message ?? "Error al crear la campaña")
+        return
+      }
+
+      const { campaign } = await campaignRes.json()
+
+      // Step 2: Create the promotion linked to the campaign
       const promoRes = await fetch("/admin/promotions", {
         method: "POST",
         credentials: "include",
@@ -53,6 +75,7 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
           code,
           type: "standard",
           is_automatic: false,
+          campaign_id: campaign.id,
           application_method: {
             type: "percentage",
             target_type: "order",
@@ -64,30 +87,7 @@ export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
 
       if (!promoRes.ok) {
         const err = await promoRes.json().catch(() => ({}))
-        toast.error(err?.message ?? "Error al crear la promoción")
-        return
-      }
-
-      const { promotion } = await promoRes.json()
-
-      // Step 2: Create the campaign and link the promotion
-      const campaignRes = await fetch("/admin/campaigns", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // INF|Name|@handle encodes influencer info — parsed by the admin UI
-          name: `INF|${form.influencer_name.trim()}|${form.handle.trim()}`,
-          campaign_identifier: `influencer-${code.toLowerCase()}`,
-          starts_at: new Date().toISOString(),
-          ends_at: new Date(form.ends_at + "T23:59:59").toISOString(),
-          promotions: [{ id: promotion.id }],
-        }),
-      })
-
-      if (!campaignRes.ok) {
-        const err = await campaignRes.json().catch(() => ({}))
-        toast.error(err?.message ?? "Error al crear la campaña. El código fue creado pero sin fecha de expiración. Ve a Promociones en el admin para eliminarlo e intenta de nuevo.")
+        toast.error(err?.message ?? "Error al crear el código. La campaña fue creada — elimínala desde Campañas e intenta de nuevo.")
         return
       }
 
