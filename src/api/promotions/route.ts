@@ -2,11 +2,15 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 
 /**
- * GET /store/promotions?code=XXXX
+ * GET /promotions?code=XXXX
  *
  * Validates a promotion code and returns its discount percentage.
  * Used by the storefront CartDrawer to preview the discount before checkout.
  * Only returns active, non-expired promotions.
+ *
+ * Intentionally placed outside /store/* to avoid the mandatory
+ * x-publishable-api-key check that Medusa applies to all store routes.
+ * CORS is configured in middlewares.ts using STORE_CORS origin.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const code = (req.query.code as string)?.toUpperCase()
@@ -16,7 +20,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const promotionService = req.scope.resolve(Modules.PROMOTION)
 
-  // listActivePromotions_ filters by status=active AND campaign date range
   const promotions = await (promotionService as any).listActivePromotions_(
     { code },
     { relations: ["application_method"] }
