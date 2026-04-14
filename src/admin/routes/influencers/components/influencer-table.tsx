@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Table, Badge, Button, Text, Heading } from "@medusajs/ui"
+import { Table, Badge, Button, Text } from "@medusajs/ui"
 import { computeRevenue } from "../lib/metrics"
 
 type InfluencerPromotion = {
@@ -29,17 +29,22 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
   const [promotions, setPromotions] = useState<InfluencerPromotion[]>([])
   const [revenueMap, setRevenueMap] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      setError(null)
       try {
         // Fetch promotions with campaigns and application_method
         const res = await fetch(
           "/admin/promotions?fields=id,code,status,usage_count,metadata,*campaigns,*application_method&limit=200",
           { credentials: "include" }
         )
-        if (!res.ok) return
+        if (!res.ok) {
+          setError("No se pudieron cargar los códigos. Intenta de nuevo.")
+          return
+        }
         const json = await res.json()
         const all: InfluencerPromotion[] = json.promotions ?? []
         const influencers = all.filter(
@@ -77,6 +82,14 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
     }
     load()
   }, [refreshKey])
+
+  if (error) {
+    return (
+      <div className="px-6 py-8 text-center">
+        <Text className="text-ui-fg-muted">{error}</Text>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -123,9 +136,9 @@ export function InfluencerTable({ onNew, onSelect, refreshKey }: Props) {
                 year: "numeric",
               })
             : "—"
-          const isExpired =
-            campaign?.ends_at && new Date(campaign.ends_at) < new Date()
+          const isExpired = !!campaign?.ends_at && new Date(campaign.ends_at) < new Date()
           const revenue = revenueMap[promo.id] ?? 0
+          // MX-only: update when multi-currency regions go live
           const revenueFormatted = new Intl.NumberFormat("es-MX", {
             style: "currency",
             currency: "MXN",
