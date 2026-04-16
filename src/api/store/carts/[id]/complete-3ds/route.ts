@@ -56,11 +56,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   try {
-    // Verify the charge is confirmed at Openpay
-    // openpay_transaction_id from the Openpay redirect callback equals the charge `id`
-    // returned by the create-charge API. Both refer to the same Openpay charge object.
-    const charge = await openpay.getCharge(openpayTransactionId)
-    logger.info(`[Complete3DS] Charge lookup — id=${charge.id} status=${charge.status}`)
+    // Verify the charge is confirmed at Openpay.
+    // Charges created under a customer must be queried via the customer endpoint.
+    // openpay_customer_id was persisted to session.data during /complete.
+    const openpayCustomerId = (session.data as any)?.openpay_customer_id as string | undefined
+    let charge: any
+    if (openpayCustomerId) {
+      charge = await openpay.getCustomerCharge(openpayCustomerId, openpayTransactionId)
+    } else {
+      charge = await openpay.getCharge(openpayTransactionId)
+    }
+    logger.info(`[Complete3DS] Charge lookup — id=${charge.id} status=${charge.status} customer_id=${openpayCustomerId ?? "n/a"}`)
 
     if (charge.status !== "completed") {
       logger.warn(`[Complete3DS] Charge not completed — status=${charge.status}`)

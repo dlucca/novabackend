@@ -105,6 +105,10 @@ export class OpenpayClient {
     return this.request<OpenpayCharge>("GET", `/charges/${chargeId}`)
   }
 
+  getCustomerCharge(customerId: string, chargeId: string): Promise<OpenpayCharge> {
+    return this.request<OpenpayCharge>("GET", `/customers/${customerId}/charges/${chargeId}`)
+  }
+
   refundCharge(chargeId: string, params: { description: string; amount?: number }): Promise<OpenpayCharge> {
     return this.request<OpenpayCharge>("POST", `/charges/${chargeId}/refund`, params)
   }
