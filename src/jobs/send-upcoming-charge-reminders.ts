@@ -48,15 +48,14 @@ export default async function sendUpcomingChargeRemindersJob(
 
   for (let i = 0; i < dueSubscriptions.length; i += CONCURRENCY) {
     const chunk = dueSubscriptions.slice(i, i + CONCURRENCY)
-    await Promise.allSettled(
-      chunk.map(async (subscription) => {
+    const results = await Promise.allSettled(
+      chunk.map(async (subscription): Promise<"sent" | "failed"> => {
         try {
           if (!subscription.original_order_id) {
             logger.warn(
               `[UpcomingChargeReminders] Subscription ${subscription.id} has no original_order_id — skipping`
             )
-            failed++
-            return
+            return "failed"
           }
 
           // Resolve customer via original order (same pattern as process-billing step)
@@ -69,8 +68,7 @@ export default async function sendUpcomingChargeRemindersJob(
             logger.warn(
               `[UpcomingChargeReminders] Order ${order.id} has no customer_id — skipping`
             )
-            failed++
-            return
+            return "failed"
           }
 
           let customer: any
@@ -80,8 +78,14 @@ export default async function sendUpcomingChargeRemindersJob(
             logger.warn(
               `[UpcomingChargeReminders] Customer ${order.customer_id} not found — skipping`
             )
-            failed++
-            return
+            return "failed"
+          }
+
+          if (!customer.email) {
+            logger.warn(
+              `[UpcomingChargeReminders] Customer ${customer.id} has no email — skipping`
+            )
+            return "failed"
           }
 
           const customerName =
@@ -91,10 +95,7 @@ export default async function sendUpcomingChargeRemindersJob(
           const productTitle =
             (subscription.metadata?.product_title as string) ?? "Suscripción Novapatch"
 
-          const nextBillingDate =
-            subscription.next_billing_date instanceof Date
-              ? subscription.next_billing_date.toISOString()
-              : String(subscription.next_billing_date)
+          const nextBillingDate = new Date(subscription.next_billing_date).toISOString()
 
           await eventBus.emit([{
             name: "subscription.upcoming_charge",
@@ -108,17 +109,21 @@ export default async function sendUpcomingChargeRemindersJob(
             },
           }])
 
-          sent++
+          return "sent"
         } catch (err) {
-          failed++
           logger.error(
             `[UpcomingChargeReminders] Error processing subscription ${subscription.id}: ${
               err instanceof Error ? err.message : String(err)
             }`
           )
+          return "failed"
         }
       })
     )
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value === "sent") sent++
+      else failed++
+    }
   }
 
   logger.info(
