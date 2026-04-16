@@ -4,6 +4,7 @@ import OrderConfirmation from "../../emails/OrderConfirmation"
 import OrderShipped from "../../emails/OrderShipped"
 import OrderDelivered from "../../emails/OrderDelivered"
 import OrderDeliveryFailed from "../../emails/OrderDeliveryFailed"
+import SubscriptionUpcomingCharge from "../../emails/SubscriptionUpcomingCharge"
 
 const CONFIRMATION_PROPS = {
   name: "Test",
@@ -89,5 +90,22 @@ describe("Email templates render without errors", () => {
     )
     expect(html).toContain("fue devuelto")
     expect(html).not.toContain("Detalle del transportista")
+  })
+
+  it("SubscriptionUpcomingCharge renders with expected content", async () => {
+    const html = await render(
+      React.createElement(SubscriptionUpcomingCharge, {
+        customerName: "Ana",
+        productTitle: "Parche Energía Novapatch",
+        nextBillingDate: new Date("2026-04-19T06:00:00.000Z").toISOString(),
+        interval_days: 30,
+      })
+    )
+    expect(html).toContain("Tu suscripción se renueva pronto")
+    expect(html).toContain("Ana")
+    expect(html).toContain("Parche Energía Novapatch")
+    expect(html).toContain("mensual")
+    expect(html).toContain("novapatch.care/cuenta/suscripciones")
+    expect(html).toContain("bienestar que no interrumpe tu d")
   })
 })
