@@ -5,16 +5,25 @@ import { OpenpayClient } from "../../../../../modules/openpay-payment/openpay-cl
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const cartId = req.params.id
+  const logger = req.scope.resolve("logger")
+
+  // Accept transaction ID from body OR from query string (Openpay redirects with ?id=...)
   const body = req.body as Record<string, unknown>
-  const openpayTransactionId = body.openpay_transaction_id as string | undefined
+  const openpayTransactionId = (
+    (body.openpay_transaction_id as string | undefined) ??
+    (req.query?.id as string | undefined) ??
+    (req.query?.openpay_transaction_id as string | undefined)
+  )
+
+  logger.info(`[Complete3DS] Request received — cartId=${cartId} transactionId=${openpayTransactionId ?? "MISSING"} body=${JSON.stringify(body)} query=${JSON.stringify(req.query)}`)
 
   if (!openpayTransactionId) {
+    logger.error(`[Complete3DS] Missing openpay_transaction_id — cartId=${cartId}`)
     res.status(400).json({ message: "openpay_transaction_id is required" })
     return
   }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const logger = req.scope.resolve("logger")
 
   // Fetch cart with payment session
   let cart: any = null
@@ -38,15 +47,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   if (!cart) {
+    logger.error(`[Complete3DS] Cart not found — cartId=${cartId}`)
     res.status(404).json({ message: "Cart not found" })
     return
   }
 
   const session = cart.payment_collection?.payment_sessions?.[0]
   if (!session?.id) {
+    logger.error(`[Complete3DS] No payment session — cartId=${cartId}`)
     res.status(422).json({ message: "Cart has no payment session" })
     return
   }
+  logger.info(`[Complete3DS] Session found — sessionId=${session.id} data=${JSON.stringify(session.data)}`)
 
   // Initialize Openpay client from env vars
   const openpay = new OpenpayClient({
