@@ -1,0 +1,13 @@
+node_modules
+.medusa
+.env
+.env.*
+dist
+build
+.cache
+coverage
+.DS_Store
+.git
+.claude
+*.md
+docs/
