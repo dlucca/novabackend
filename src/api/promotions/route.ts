@@ -32,6 +32,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const promo = promotions[0]
   const value = promo.application_method?.value ?? 0
 
+  res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=60")
   return res.json({
     promotion: {
       id: promo.id,
