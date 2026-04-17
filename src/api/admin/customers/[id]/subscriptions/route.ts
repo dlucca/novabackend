@@ -2,6 +2,8 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+// Protected automatically by Medusa's admin session middleware (applied to all /admin/* routes).
+
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const customerId = req.params.id
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -29,7 +31,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       const orders: any[] = s.subscription_orders ?? []
       const cycles_count = orders.length
       const total_charged = orders.reduce(
-        (sum: number, so: any) => sum + (so.order?.total ?? 0),
+        (sum: number, so: any) => sum + Number(so.order?.total ?? 0),
         0
       )
       const currencies = new Set(
