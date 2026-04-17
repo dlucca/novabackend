@@ -129,9 +129,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       currency: currencyCode,
       description: `Novapatch order - ${cartId}`,
       device_session_id: deviceSessionId,
-      // 3DS only in production — sandbox always forces redirect breaking the direct flow
+      // redirect_url is always required by Openpay; 3DS only enabled in production
+      // (sandbox always forces charge_pending redirect when use_3d_secure is true)
       use_3d_secure: !isSandbox,
-      redirect_url: !isSandbox ? `${process.env.STOREFRONT_URL}/checkout/3ds-return` : undefined,
+      redirect_url: `${process.env.STOREFRONT_URL}/checkout/3ds-return`,
     })
     logger.info(`[CompleteCart] Charge created — charge_id=${charge.id} status=${charge.status}`)
 
