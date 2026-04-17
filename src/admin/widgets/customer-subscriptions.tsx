@@ -1,7 +1,7 @@
-// src/admin/widgets/customer-subscriptions.tsx
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
-import { useEffect, useState } from "react"
-import { Container, Heading, Text, Badge, Table } from "@medusajs/ui"
+import { useQuery } from "@tanstack/react-query"
+import { Container, Heading, Text, Badge, Table, Spinner } from "@medusajs/ui"
+import { sdk } from "../lib/client"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,8 +44,7 @@ const FREQUENCY_LABEL: Record<SubscriptionRow["interval_days"], string> = {
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleDateString("es-MX", {
+  return new Date(iso).toLocaleDateString("es-MX", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -53,13 +52,12 @@ function formatDate(iso: string): string {
 }
 
 function formatAmount(amount: number, currency: string | null): string {
-  const safeCurrency =
-    currency && currency !== "MIXED" ? currency : "MXN"
+  const safeCurrency = currency && currency !== "MIXED" ? currency : "MXN"
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: safeCurrency,
     minimumFractionDigits: 2,
-  }).format(amount / 100)
+  }).format(amount)
 }
 
 // ─── Widget ───────────────────────────────────────────────────────────────────
@@ -67,31 +65,15 @@ function formatAmount(amount: number, currency: string | null): string {
 const CustomerSubscriptionsWidget = ({
   data: customer,
 }: CustomerSubscriptionsWidgetProps) => {
-  const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["customer-subscriptions", customer.id],
+    queryFn: () =>
+      sdk.client.fetch<{ subscriptions: SubscriptionRow[] }>(
+        `/admin/customers/${customer.id}/subscriptions`
+      ),
+  })
 
-  useEffect(() => {
-    const fetchSubscriptions = async () => {
-      try {
-        const res = await fetch(
-          `/admin/customers/${customer.id}/subscriptions`,
-          { credentials: "include" }
-        )
-        if (!res.ok) {
-          setError(true)
-          return
-        }
-        const json = await res.json()
-        setSubscriptions(json.subscriptions ?? [])
-      } catch {
-        setError(true)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchSubscriptions()
-  }, [customer.id])
+  const subscriptions = data?.subscriptions ?? []
 
   return (
     <Container className="divide-y p-0">
@@ -100,25 +82,28 @@ const CustomerSubscriptionsWidget = ({
       </div>
 
       <div className="px-6 py-4">
-        {loading && (
-          <Text size="small" className="text-ui-fg-muted">
-            Cargando suscripciones…
-          </Text>
+        {isLoading && (
+          <div className="flex items-center gap-2">
+            <Spinner />
+            <Text size="small" className="text-ui-fg-subtle">
+              Cargando suscripciones…
+            </Text>
+          </div>
         )}
 
-        {!loading && error && (
+        {!isLoading && isError && (
           <Text size="small" className="text-ui-fg-error">
             No se pudieron cargar las suscripciones.
           </Text>
         )}
 
-        {!loading && !error && subscriptions.length === 0 && (
-          <Text size="small" className="text-ui-fg-muted">
+        {!isLoading && !isError && subscriptions.length === 0 && (
+          <Text size="small" className="text-ui-fg-subtle">
             Este cliente no tiene suscripciones.
           </Text>
         )}
 
-        {!loading && !error && subscriptions.length > 0 && (
+        {!isLoading && !isError && subscriptions.length > 0 && (
           <Table>
             <Table.Header>
               <Table.Row>
@@ -146,7 +131,8 @@ const CustomerSubscriptionsWidget = ({
                       <Badge color={badge.color}>{badge.label}</Badge>
                     </Table.Cell>
                     <Table.Cell>
-                      {FREQUENCY_LABEL[sub.interval_days] ?? `${sub.interval_days} días`}
+                      {FREQUENCY_LABEL[sub.interval_days] ??
+                        `${sub.interval_days} días`}
                     </Table.Cell>
                     <Table.Cell>
                       {sub.next_billing_date
@@ -156,7 +142,10 @@ const CustomerSubscriptionsWidget = ({
                     <Table.Cell>{sub.cycles_count}</Table.Cell>
                     <Table.Cell>
                       {sub.total_charged != null
-                        ? formatAmount(sub.total_charged, sub.currency_code ?? "MXN")
+                        ? formatAmount(
+                            sub.total_charged,
+                            sub.currency_code ?? "MXN"
+                          )
                         : "—"}
                     </Table.Cell>
                   </Table.Row>
