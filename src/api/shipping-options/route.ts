@@ -36,5 +36,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   })
 
+  res.set("Cache-Control", "public, max-age=300, stale-while-revalidate=3600")
   return res.json({ shipping_options: result })
 }
