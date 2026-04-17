@@ -1,17 +1,18 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Cached layer — npm ci only reruns when package*.json changes
 COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+COPY --from=builder /app/.medusa/server /app
+
 RUN npm ci --omit=dev
 
-# Build at image-build time (not at container start)
-COPY . .
-RUN npm run build \
-    && ln -sf /app/node_modules /app/.medusa/server/node_modules
-
-WORKDIR /app/.medusa/server
-
 EXPOSE 9000
-# Migrations still run at container start so each deploy picks up new migrations
 CMD ["sh", "-c", "npx medusa db:migrate && npx medusa start"]
