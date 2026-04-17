@@ -3,7 +3,7 @@ WORKDIR /app
 
 # Cached layer — npm ci only reruns when package*.json changes
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --omit=dev
 
 # Build at image-build time (not at container start)
 COPY . .
