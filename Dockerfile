@@ -1,18 +1,14 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN npm run build \
+    && ln -sf /app/node_modules /app/.medusa/server/node_modules
 
-FROM node:20-alpine AS runner
-WORKDIR /app
-
-COPY --from=builder /app/.medusa/server /app
-
-RUN npm ci --omit=dev
+WORKDIR /app/.medusa/server
 
 EXPOSE 9000
 CMD ["sh", "-c", "npx medusa db:migrate && npx medusa start"]
