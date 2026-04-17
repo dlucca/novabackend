@@ -1,6 +1,6 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { useQuery } from "@tanstack/react-query"
-import { Container, Heading, Text, Badge, Table, Spinner } from "@medusajs/ui"
+import { Container, Heading, Text, Badge, Table } from "@medusajs/ui"
 import { sdk } from "../lib/client"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -83,12 +83,9 @@ const CustomerSubscriptionsWidget = ({
 
       <div className="px-6 py-4">
         {isLoading && (
-          <div className="flex items-center gap-2">
-            <Spinner />
-            <Text size="small" className="text-ui-fg-subtle">
-              Cargando suscripciones…
-            </Text>
-          </div>
+          <Text size="small" className="text-ui-fg-subtle">
+            Cargando suscripciones…
+          </Text>
         )}
 
         {!isLoading && isError && (
