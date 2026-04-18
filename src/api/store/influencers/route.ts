@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { INFLUENCER_MODULE } from "../../../modules/influencer"
 import InfluencerModuleService from "../../../modules/influencer/service"
+import { sendSlackNotification } from "../../../lib/slack-client"
+import { mapInfluencerApplicationToSlackBlocks } from "../../../lib/slack-mappers"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const body = req.body as Record<string, unknown>
@@ -41,6 +43,23 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       estado: "pendiente",
     } as any,
   ])
+
+  const webhookUrl = process.env.SLACK_INFLUENCER_WEBHOOK_URL
+  if (webhookUrl) {
+    const blocks = mapInfluencerApplicationToSlackBlocks({
+      nombre: application.nombre,
+      email: application.email,
+      pais: application.pais,
+      red_principal: application.red_principal,
+      handle: application.handle,
+      rango_seguidores: application.rango_seguidores,
+      nicho: application.nicho,
+      parches: application.parches,
+    })
+    sendSlackNotification(webhookUrl, blocks).catch((err) =>
+      console.error("Slack influencer notification failed:", err)
+    )
+  }
 
   return res.status(201).json({ success: true, id: application.id })
 }
