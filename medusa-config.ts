@@ -22,6 +22,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/subscription",
     },
     {
+      resolve: "./src/modules/influencer",
+    },
+    {
       resolve: "@medusajs/medusa/fulfillment",
       options: {
         providers: [
