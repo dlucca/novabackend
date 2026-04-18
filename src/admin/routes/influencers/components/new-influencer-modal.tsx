@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   FocusModal,
   Button,
@@ -20,16 +20,28 @@ type Props = {
   open: boolean
   onClose: () => void
   onCreated: () => void
+  defaultInfluencerName?: string
+  defaultHandle?: string
 }
 
-export function NewInfluencerModal({ open, onClose, onCreated }: Props) {
+export function NewInfluencerModal({ open, onClose, onCreated, defaultInfluencerName, defaultHandle }: Props) {
   const [form, setForm] = useState({
-    influencer_name: "",
-    handle: "",
+    influencer_name: defaultInfluencerName ?? "",
+    handle: defaultHandle ?? "",
     code: "",
     value: "10",
     ends_at: "",
   })
+
+  useEffect(() => {
+    if (open) {
+      setForm((prev) => ({
+        ...prev,
+        influencer_name: defaultInfluencerName ?? prev.influencer_name,
+        handle: defaultHandle ?? prev.handle,
+      }))
+    }
+  }, [open, defaultInfluencerName, defaultHandle])
   const [saving, setSaving] = useState(false)
 
   const handleChange = (field: keyof typeof form, value: string) => {
