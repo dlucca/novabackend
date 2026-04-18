@@ -53,8 +53,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       red_principal: application.red_principal,
       handle: application.handle,
       rango_seguidores: application.rango_seguidores,
-      nicho: application.nicho,
-      parches: application.parches,
+      nicho: application.nicho as string[],
+      parches: application.parches as string[],
     })
     sendSlackNotification(webhookUrl, blocks).catch((err) =>
       console.error("Slack influencer notification failed:", err)
