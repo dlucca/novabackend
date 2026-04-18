@@ -31,3 +31,28 @@ export function parseInfluencerCampaign(name?: string): { influencer_name: strin
 export function isInfluencerPromotion(promo: InfluencerPromotion): boolean {
   return promo.campaign?.name?.startsWith("INF|") ?? false
 }
+
+export type InfluencerApplication = {
+  id: string
+  nombre: string
+  email: string
+  pais: string
+  red_principal: string
+  handle: string
+  handle_secundario: string | null
+  link_perfil: string
+  rango_seguidores: string
+  nicho: string[]
+  tipo_contenido: string[]
+  genero_audiencia: string
+  edad_audiencia: string
+  tiene_contenido_bienestar: string
+  marcas_previas: string | null
+  parches: string[]
+  modalidad: string[]
+  media_kit: string | null
+  media_kit_url: string | null
+  mensaje_libre: string | null
+  estado: "pendiente" | "aprobado" | "rechazado"
+  created_at: string
+}
