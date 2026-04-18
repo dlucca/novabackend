@@ -23,6 +23,50 @@ function formatDate(dateStr: string): string {
   }
 }
 
+export function mapInfluencerApplicationToSlackBlocks(app: {
+  nombre: string
+  email: string
+  pais: string
+  red_principal: string
+  handle: string
+  rango_seguidores: string
+  nicho: string[]
+  parches: string[]
+}): SlackBlock[] {
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "🌟 Nueva postulación de influencer", emoji: true },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Nombre*\n${app.nombre}` },
+        { type: "mrkdwn", text: `*Email*\n${app.email}` },
+      ],
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Red principal*\n${app.red_principal} — @${app.handle}` },
+        { type: "mrkdwn", text: `*Seguidores*\n${app.rango_seguidores}` },
+      ],
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*País*\n${app.pais}` },
+        { type: "mrkdwn", text: `*Nicho*\n${app.nicho.join(", ")}` },
+      ],
+    },
+    { type: "divider" },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*Parches de interés*\n${app.parches.join(", ")}` },
+    },
+  ]
+}
+
 export function mapFulfillmentToSlackBlocks(order: any, labelUrl: string): SlackBlock[] {
   const displayId = order.display_id ? `#${order.display_id}` : order.id
   const date = formatDate(order.created_at)
