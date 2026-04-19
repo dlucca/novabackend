@@ -767,7 +767,7 @@ Los cupones de influencer se crean desde la UI de Admin (`/a/influencers`) con c
 
 ## Testing
 
-### Estructura
+### Tests unitarios
 
 ```
 src/__tests__/
@@ -792,11 +792,41 @@ src/__tests__/
     └── subscription-state-machine.unit.spec.ts  # Transiciones de estado (pause/resume/cancel)
 ```
 
+### Tests de integración HTTP
+
+Corren contra el backend real en Railway. Requieren variables de entorno configuradas en `.env.test`.
+
+```
+integration-tests/http/
+├── helpers/
+│   └── api.ts                    # getAdminToken, adminGet, adminPost, storePost, createTestCart
+├── payments/
+│   └── cart-complete-idempotency.spec.ts   # POST /store/carts/:id/complete no cobra dos veces
+├── subscriptions/
+│   ├── renewal-cycle.spec.ts              # Trigger manual de billing cycle → nueva orden creada
+│   ├── cancel-mid-cycle.spec.ts           # Cancelación → no se cobra el siguiente ciclo
+│   └── pause-resume.spec.ts              # Pausa y reactivación → next_billing_date recalculada
+└── jobs/
+    └── bullmq-idempotency.spec.ts         # Cron job no genera doble cobro en runs consecutivos
+```
+
+**Variables de entorno para integración:**
+
+```bash
+BACKEND_URL=https://novabackend-production-7977.up.railway.app
+MEDUSA_PUBLISHABLE_KEY=pk_...
+MEDUSA_ADMIN_EMAIL=admin@novapatch.care
+MEDUSA_ADMIN_PASSWORD=...
+ENABLE_TEST_ROUTES=true   # requerido en Railway para trigger-billing
+```
+
+> `ENABLE_TEST_ROUTES=true` habilita `POST /admin/subscriptions/:id/trigger-billing`, una ruta de testing protegida por autenticación de admin. No setear en producción sin tests activos.
+
 ### Comandos
 
 ```bash
-npm run test:unit                 # Corre todos los tests unitarios
-npm run test:integration:http     # Tests de integración HTTP (requiere DB activa)
+npm run test:unit                 # Tests unitarios (no requieren backend activo)
+npm run test:integration:http     # Tests de integración HTTP (requieren BACKEND_URL)
 ```
 
 ---
