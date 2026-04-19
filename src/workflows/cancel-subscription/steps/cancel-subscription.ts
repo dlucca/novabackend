@@ -1,5 +1,5 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { SUBSCRIPTION_MODULE } from "../../../modules/subscription"
 
 type CancelSubscriptionInput = {
@@ -40,6 +40,17 @@ export const cancelSubscriptionStep = createStep(
     const updated = await subscriptionService.retrieveSubscription(
       input.subscription_id
     )
+
+    // Emit event for Slack monitoring and any future subscribers
+    const eventBus = container.resolve(Modules.EVENT_BUS)
+    await eventBus.emit([{
+      name: "subscription.canceled",
+      data: {
+        subscription_id: input.subscription_id,
+        previous_status: previousStatus,
+        interval_days: subscription.interval_days,
+      },
+    }])
 
     return new StepResponse(updated, {
       subscription_id: input.subscription_id,

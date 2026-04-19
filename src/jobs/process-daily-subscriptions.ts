@@ -1,6 +1,11 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import processBillingCycleWorkflow from "../workflows/process-billing-cycle"
 import { SUBSCRIPTION_MODULE } from "../modules/subscription"
+import { sendSlackNotification } from "../lib/slack-client"
+import {
+  mapBillingRunToSlackBlocks,
+  mapBillingCriticalErrorToSlackBlocks,
+} from "../lib/slack-mappers"
 
 const CONCURRENCY = 5
 
@@ -22,11 +27,15 @@ export default async function processDailySubscriptionsJob(
       next_billing_date: { $lte: now },
     })
   } catch (err) {
-    logger.error(
-      `[ProcessDailySubscriptions] Failed to list subscriptions: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    )
+    const message = err instanceof Error ? err.message : String(err)
+    logger.error(`[ProcessDailySubscriptions] Failed to list subscriptions: ${message}`)
+
+    const webhookUrl = process.env.SLACK_BACKEND_WEBHOOK_URL
+    if (webhookUrl) {
+      await sendSlackNotification(webhookUrl, mapBillingCriticalErrorToSlackBlocks(message)).catch(
+        (e) => logger.warn(`[ProcessDailySubscriptions] Slack alert failed: ${e.message}`)
+      )
+    }
     return
   }
 
@@ -69,6 +78,20 @@ export default async function processDailySubscriptionsJob(
   logger.info(
     `[ProcessDailySubscriptions] Done. Succeeded: ${succeeded} | Failed: ${failed} | Skipped/Delayed: ${skipped}`
   )
+
+  const webhookUrl = process.env.SLACK_BACKEND_WEBHOOK_URL
+  if (webhookUrl) {
+    const date = now.toLocaleDateString("es-MX", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "America/Mexico_City",
+    })
+    await sendSlackNotification(
+      webhookUrl,
+      mapBillingRunToSlackBlocks({ succeeded, failed, skipped, total: dueSubscriptions.length, date })
+    ).catch((e) => logger.warn(`[ProcessDailySubscriptions] Slack summary failed: ${e.message}`))
+  }
 }
 
 export const config = {

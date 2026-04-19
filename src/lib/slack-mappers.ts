@@ -67,6 +67,235 @@ export function mapInfluencerApplicationToSlackBlocks(app: {
   ]
 }
 
+export type RailwayDeploymentStatus = "SUCCESS" | "FAILED" | "CRASHED" | string
+
+export type RailwayWebhookPayload = {
+  type: string
+  timestamp?: string
+  project?: { id: string; name: string }
+  environment?: { id: string; name: string }
+  service?: { id: string; name: string }
+  deployment?: {
+    id: string
+    status: RailwayDeploymentStatus
+    url?: string
+    meta?: {
+      commitMessage?: string
+      commitAuthor?: string
+      branch?: string
+      repo?: string
+    }
+  }
+}
+
+export function mapRailwayEventToSlackBlocks(payload: RailwayWebhookPayload): SlackBlock[] | null {
+  const type = payload.type
+  const service = payload.service?.name ?? "backend"
+  const env = payload.environment?.name ?? "production"
+  const meta = payload.deployment?.meta
+
+  if (type === "DEPLOYMENT_DEPLOYED") {
+    const commit = meta?.commitMessage ? `\`${meta.commitMessage}\`` : "—"
+    const author = meta?.commitAuthor ?? "—"
+    return [
+      {
+        type: "header",
+        text: { type: "plain_text", text: `🟢 Deploy exitoso — ${service}`, emoji: true },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Entorno*\n${env}` },
+          { type: "mrkdwn", text: `*Autor*\n${author}` },
+          { type: "mrkdwn", text: `*Commit*\n${commit}` },
+          ...(meta?.branch ? [{ type: "mrkdwn" as const, text: `*Rama*\n${meta.branch}` }] : []),
+        ],
+      },
+    ]
+  }
+
+  if (type === "DEPLOYMENT_CRASHED") {
+    const commit = meta?.commitMessage ? `\`${meta.commitMessage}\`` : "—"
+    return [
+      {
+        type: "header",
+        text: { type: "plain_text", text: `🔴 Servicio CAÍDO — ${service}`, emoji: true },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Entorno*\n${env}` },
+          { type: "mrkdwn", text: `*Commit*\n${commit}` },
+        ],
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: "⚠️ El servicio se reinició inesperadamente. Revisar logs en Railway." },
+      },
+    ]
+  }
+
+  if (type === "DEPLOYMENT_OOM_KILLED") {
+    return [
+      {
+        type: "header",
+        text: { type: "plain_text", text: `🔴 Out of Memory — ${service}`, emoji: true },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Entorno*\n${env}` },
+          { type: "mrkdwn", text: `*Deployment ID*\n\`${payload.deployment?.id ?? "—"}\`` },
+        ],
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: "El proceso fue terminado por exceso de memoria. Considera aumentar el límite en Railway." },
+      },
+    ]
+  }
+
+  if (type === "MONITOR_TRIGGERED") {
+    return [
+      {
+        type: "header",
+        text: { type: "plain_text", text: `🟡 Monitor activado — ${service}`, emoji: true },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Entorno*\n${env}` },
+          { type: "mrkdwn", text: `*Proyecto*\n${payload.project?.name ?? "—"}` },
+        ],
+      },
+    ]
+  }
+
+  if (type === "VOLUME_ALERT_TRIGGERED") {
+    return [
+      {
+        type: "header",
+        text: { type: "plain_text", text: `🟡 Alerta de volumen — ${service}`, emoji: true },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: "El almacenamiento del volumen está llegando al límite. Revisar en Railway." },
+      },
+    ]
+  }
+
+  // Ignorar eventos de estado intermedio
+  return null
+}
+
+export function mapBillingRunToSlackBlocks(stats: {
+  succeeded: number
+  failed: number
+  skipped: number
+  total: number
+  date: string
+}): SlackBlock[] {
+  const { succeeded, failed, skipped, total, date } = stats
+  const hasFailures = failed > 0
+  const emoji = hasFailures ? "🟡" : "🟢"
+  const title = `${emoji} Billing Run — ${date}`
+
+  const blocks: SlackBlock[] = [
+    { type: "header", text: { type: "plain_text", text: title, emoji: true } },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Total due*\n${total}` },
+        { type: "mrkdwn", text: `*Cobradas*\n${succeeded}` },
+        { type: "mrkdwn", text: `*Fallidas*\n${failed}` },
+        { type: "mrkdwn", text: `*Diferidas*\n${skipped}` },
+      ],
+    },
+  ]
+
+  if (hasFailures) {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `⚠️ ${failed} suscripción${failed > 1 ? "es" : ""} pasó a *past_due* — revisar en admin.`,
+      },
+    })
+  }
+
+  return blocks
+}
+
+export function mapBillingCriticalErrorToSlackBlocks(error: string): SlackBlock[] {
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "🔴 CRÍTICO — Billing job falló", emoji: true },
+    },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*Error:*\n\`\`\`${error}\`\`\`` },
+    },
+  ]
+}
+
+export function mapPaymentFailedAlertToSlackBlocks(data: {
+  subscription_id: string
+  reason: string
+  customer_email: string
+  customer_name: string
+  amount?: number
+}): SlackBlock[] {
+  const amountText = data.amount != null ? `$${data.amount} MXN` : "—"
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "🟡 Pago fallido en suscripción", emoji: true },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Suscripción*\n\`${data.subscription_id}\`` },
+        { type: "mrkdwn", text: `*Razón*\n${data.reason}` },
+      ],
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Cliente*\n${data.customer_name || "—"} · ${data.customer_email}` },
+        { type: "mrkdwn", text: `*Monto*\n${amountText}` },
+      ],
+    },
+  ]
+}
+
+export function mapSubscriptionCanceledToSlackBlocks(data: {
+  subscription_id: string
+  previous_status: string
+  customer_email?: string
+  interval_days?: number
+}): SlackBlock[] {
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "📊 Suscripción cancelada", emoji: true },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Suscripción*\n\`${data.subscription_id}\`` },
+        { type: "mrkdwn", text: `*Estado anterior*\n${data.previous_status}` },
+        ...(data.customer_email
+          ? [{ type: "mrkdwn" as const, text: `*Cliente*\n${data.customer_email}` }]
+          : []),
+        ...(data.interval_days != null
+          ? [{ type: "mrkdwn" as const, text: `*Frecuencia*\nCada ${data.interval_days} días` }]
+          : []),
+      ],
+    },
+  ]
+}
+
 export function mapFulfillmentToSlackBlocks(order: any, labelUrl: string): SlackBlock[] {
   const displayId = order.display_id ? `#${order.display_id}` : order.id
   const date = formatDate(order.created_at)
