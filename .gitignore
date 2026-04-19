@@ -26,3 +26,4 @@ build
 .medusa
 ~$*
 .claude.worktrees/
+.worktrees/
