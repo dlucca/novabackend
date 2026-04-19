@@ -11,12 +11,10 @@ export type SlackBlock =
 
 function formatDate(dateStr: string): string {
   try {
-    return new Date(dateStr).toLocaleString("es-MX", {
+    return new Date(dateStr).toLocaleDateString("es-MX", {
       day: "2-digit",
       month: "short",
       year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     })
   } catch {
     return dateStr ?? ""
