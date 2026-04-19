@@ -96,7 +96,6 @@ export function mapRailwayEventToSlackBlocks(payload: RailwayWebhookPayload): Sl
 
   if (type === "DEPLOYMENT_DEPLOYED") {
     const commit = meta?.commitMessage ? `\`${meta.commitMessage}\`` : "—"
-    const author = meta?.commitAuthor ?? "—"
     return [
       {
         type: "header",
@@ -106,7 +105,6 @@ export function mapRailwayEventToSlackBlocks(payload: RailwayWebhookPayload): Sl
         type: "section",
         fields: [
           { type: "mrkdwn", text: `*Entorno*\n${env}` },
-          { type: "mrkdwn", text: `*Autor*\n${author}` },
           { type: "mrkdwn", text: `*Commit*\n${commit}` },
           ...(meta?.branch ? [{ type: "mrkdwn" as const, text: `*Rama*\n${meta.branch}` }] : []),
         ],
