@@ -5,6 +5,7 @@ describe("Subscription renewal cycle", () => {
   let adminToken: string
 
   beforeAll(async () => {
+    jest.setTimeout(60_000)
     adminToken = await getAdminToken()
   })
 
@@ -57,4 +58,4 @@ describe("Subscription renewal cycle", () => {
     const refreshedSub = refreshedSubsBody.subscriptions?.find((s: any) => s.id === subscriptionId)
     expect(new Date(refreshedSub.next_billing_date) > new Date(originalNextBillingDate)).toBe(true)
   })
-}, 60_000)
+})

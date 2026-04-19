@@ -5,6 +5,7 @@ describe("Subscription pause and resume", () => {
   let adminToken: string
 
   beforeAll(async () => {
+    jest.setTimeout(90_000)
     adminToken = await getAdminToken()
   })
 
@@ -89,4 +90,4 @@ describe("Subscription pause and resume", () => {
     const { body: ordersAfterResumeBody } = await adminGet(`/admin/orders?customer_id=${customer.id}&limit=50`, adminToken)
     expect((ordersAfterResumeBody.count ?? ordersAfterResumeBody.orders?.length ?? 0)).toBe(orderCountBefore + 1)
   })
-}, 90_000)
+})

@@ -7,6 +7,7 @@ describe("Cart complete idempotency", () => {
   let adminToken: string
 
   beforeAll(async () => {
+    jest.setTimeout(60_000)
     adminToken = await getAdminToken()
   })
 
@@ -57,4 +58,4 @@ describe("Cart complete idempotency", () => {
     const orders = ordersBody.orders ?? []
     expect(orders.length).toBe(1)
   })
-}, 60_000)
+})

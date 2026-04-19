@@ -5,6 +5,7 @@ describe("Subscription cancel mid-cycle", () => {
   let adminToken: string
 
   beforeAll(async () => {
+    jest.setTimeout(60_000)
     adminToken = await getAdminToken()
   })
 
@@ -66,4 +67,4 @@ describe("Subscription cancel mid-cycle", () => {
     const orderCountAfter = ordersAfterBody.count ?? ordersAfterBody.orders?.length ?? 0
     expect(orderCountAfter).toBe(orderCountBefore)
   })
-}, 60_000)
+})

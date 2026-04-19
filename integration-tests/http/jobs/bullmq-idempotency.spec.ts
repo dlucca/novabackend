@@ -5,6 +5,7 @@ describe("BullMQ billing idempotency", () => {
   let adminToken: string
 
   beforeAll(async () => {
+    jest.setTimeout(60_000)
     adminToken = await getAdminToken()
   })
 
@@ -52,4 +53,4 @@ describe("BullMQ billing idempotency", () => {
     const refreshedSub = refreshedSubsBody.subscriptions?.find((s: any) => s.id === subscriptionId)
     expect(new Date(refreshedSub.next_billing_date) > new Date(pastDate)).toBe(true)
   })
-}, 60_000)
+})
