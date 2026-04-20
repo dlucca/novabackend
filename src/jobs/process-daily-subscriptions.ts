@@ -97,5 +97,5 @@ export default async function processDailySubscriptionsJob(
 export const config = {
   name: "process-daily-subscriptions",
   // 06:00 UTC = midnight CST (Mexico City, UTC-6)
-  schedule: "0 6 * * *",
+  schedule: "0 3 * * *",
 }

@@ -7,16 +7,25 @@
 import { SUBSCRIPTION_MODULE } from "../../modules/subscription"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { OpenpayClient } from "../../modules/openpay-payment/openpay-client"
+import { getChargeClient } from "../../lib/payment-provider-router"
 import { enviaCreateFulfillmentWorkflow } from "../../workflows/envia-create-fulfillment"
 
 // ── Module-level mocks ────────────────────────────────────────────────────────
 
 const mockOpenpayClient = {
   listCards: jest.fn(),
-  chargeCustomerCard: jest.fn(),
 }
 jest.mock("../../modules/openpay-payment/openpay-client", () => ({
   OpenpayClient: jest.fn().mockImplementation(() => mockOpenpayClient),
+}))
+
+// mockChargeClient must be declared with var so it is hoisted before jest.mock factories run
+// eslint-disable-next-line no-var
+var mockChargeClient = {
+  chargeSubscription: jest.fn(),
+}
+jest.mock("../../lib/payment-provider-router", () => ({
+  getChargeClient: jest.fn().mockReturnValue(mockChargeClient),
 }))
 
 // mockEnviaRun must be declared with var so it is hoisted before jest.mock factories run
@@ -96,7 +105,7 @@ const baseCustomer = {
   },
 }
 
-const baseCharge = { id: "ch_1", status: "completed" }
+const baseChargeResult = { chargeId: "ch_1" }
 const baseRenewalOrder = { id: "ord_renewal_1" }
 
 // ── Deps builder ──────────────────────────────────────────────────────────────
@@ -109,6 +118,7 @@ function makeDeps() {
     query: mockQuery,
     eventBus: mockEventBus,
     logger: mockLogger,
+    container: {} as any,
   }
 }
 
@@ -125,9 +135,9 @@ type BillingResult = {
 
 async function runBillingLogic(
   deps: Deps,
-  input: { subscription_id: string }
+  input: { subscription_id: string; provider_id?: string }
 ): Promise<BillingResult> {
-  const { subscriptionService, orderService, customerService, query, eventBus, logger } = deps
+  const { subscriptionService, orderService, customerService, query, eventBus, logger, container } = deps
   const LOG = `[process-billing] ${input.subscription_id}`
 
   const subscription = await subscriptionService.retrieveSubscription(
@@ -175,21 +185,23 @@ async function runBillingLogic(
   }
 
   const customerName = `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim()
-  const openpayCustomerId = customer.metadata?.openpay_customer_id as string | undefined
+  const resolvedProvider = input.provider_id ?? "pp_openpay"
+  const vaultCustomerIdKey = resolvedProvider === "pp_mercadopago" ? "mp_customer_id" : "openpay_customer_id"
+  const vaultCustomerId = customer.metadata?.[vaultCustomerIdKey] as string | undefined
 
-  if (!openpayCustomerId) {
-    logger.error(`${LOG} Customer ${customer.id} has no openpay_customer_id`)
+  if (!vaultCustomerId) {
+    logger.error(`${LOG} Customer ${customer.id} has no ${vaultCustomerIdKey}`)
     await subscriptionService.updateSubscriptions({ id: input.subscription_id, status: "past_due" })
     await eventBus.emit([{
       name: "subscription.payment_failed",
       data: {
         subscription_id: input.subscription_id,
-        reason: "no_openpay_customer",
+        reason: `no_${vaultCustomerIdKey}`,
         customer_email: customer.email,
         customer_name: customerName,
       },
     }])
-    return { failed: true, reason: "no_openpay_customer" }
+    return { failed: true, reason: `no_${vaultCustomerIdKey}` }
   }
 
   let inStock = true
@@ -228,21 +240,31 @@ async function runBillingLogic(
     return { delayed: true, reason: "out_of_stock" }
   }
 
-  const merchantId = process.env.OPENPAY_MERCHANT_ID ?? ""
-  const privateKey = process.env.OPENPAY_PRIVATE_KEY ?? ""
-  const sandbox = process.env.OPENPAY_SANDBOX !== "false"
-
-  if (!merchantId || !privateKey) {
-    logger.error(`${LOG} Openpay credentials not configured`)
-    return { skipped: true, reason: "openpay_not_configured" }
+  let chargeClientInstance: ReturnType<typeof getChargeClient>
+  try {
+    chargeClientInstance = getChargeClient(resolvedProvider, container)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    logger.error(`${LOG} Payment provider not configured: ${message}`)
+    return { skipped: true, reason: "provider_not_configured" }
   }
 
-  const openpayClient = new OpenpayClient({ merchantId, privateKey, sandbox } as any)
+  const defaultCardIdKey = resolvedProvider === "pp_mercadopago" ? "mp_default_card_id" : "openpay_default_card_id"
+  let cardId = customer.metadata?.[defaultCardIdKey] as string | undefined
 
-  let cardId = customer.metadata?.openpay_default_card_id as string | undefined
   if (!cardId) {
-    const cards = await (openpayClient as any).listCards(openpayCustomerId)
-    cardId = cards[0]?.id
+    if (resolvedProvider === "pp_mercadopago") {
+      // MercadoPago fallback: not tested here; tested in mp-specific tests
+    } else {
+      const merchantId = process.env.OPENPAY_MERCHANT_ID ?? ""
+      const privateKey = process.env.OPENPAY_PRIVATE_KEY ?? ""
+      const sandbox = process.env.OPENPAY_SANDBOX !== "false"
+      if (merchantId && privateKey) {
+        const openpayClient = new OpenpayClient({ merchantId, privateKey, sandbox } as any)
+        const cards = await (openpayClient as any).listCards(vaultCustomerId)
+        cardId = cards[0]?.id
+      }
+    }
   }
 
   if (!cardId) {
@@ -259,14 +281,15 @@ async function runBillingLogic(
     return { failed: true, reason: "no_card" }
   }
 
-  let charge: any
+  let chargeResult: { chargeId: string }
   try {
-    charge = await (openpayClient as any).chargeCustomerCard(openpayCustomerId, {
-      source_id: cardId,
+    chargeResult = await chargeClientInstance.chargeSubscription({
+      customerId: vaultCustomerId,
+      cardId,
       amount: subscriptionItem.unit_price,
       currency: (order.currency_code ?? "MXN").toUpperCase(),
       description: `Novapatch renovación: ${subscriptionItem.title ?? "suscripción"}`,
-      order_id: `sub-${input.subscription_id.slice(-8)}-${Date.now()}`,
+      externalReference: `sub-${input.subscription_id.slice(-8)}-${Date.now()}`,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -316,13 +339,15 @@ async function runBillingLogic(
         is_subscription: true,
         interval_days: subscription.interval_days,
         cycle_number: cycleNumber,
-        openpay_charge_id: charge.id,
+        charge_id: chargeResult.chargeId,
+        payment_provider: resolvedProvider,
       },
     }],
     metadata: {
       subscription_id: input.subscription_id,
       cycle_number: cycleNumber,
-      openpay_charge_id: charge.id,
+      charge_id: chargeResult.chargeId,
+      payment_provider: resolvedProvider,
     },
     status: "pending",
   }])
@@ -352,7 +377,8 @@ async function runBillingLogic(
       customer_email: customer.email,
       customer_name: customerName,
       next_billing_date: nextBillingDate.toISOString(),
-      openpay_charge_id: charge.id,
+      charge_id: chargeResult.chargeId,
+      payment_provider: resolvedProvider,
     },
   }])
 
@@ -391,7 +417,8 @@ describe("process-billing", () => {
     mockOrderService.createOrders.mockResolvedValue([baseRenewalOrder])
     mockCustomerService.retrieveCustomer.mockResolvedValue({ ...baseCustomer })
     mockEventBus.emit.mockResolvedValue(undefined)
-    mockOpenpayClient.chargeCustomerCard.mockResolvedValue(baseCharge)
+    mockChargeClient.chargeSubscription.mockResolvedValue(baseChargeResult);
+    (getChargeClient as jest.Mock).mockReturnValue(mockChargeClient)
     mockQuery.graph.mockImplementation(({ entity }: any) => {
       if (entity === "subscription") {
         return Promise.resolve({ data: [{ product_variant: { id: "var_1", allow_backorder: false } }] })
@@ -434,7 +461,7 @@ describe("process-billing", () => {
   it("no openpay_customer_id → marks past_due", async () => {
     mockCustomerService.retrieveCustomer.mockResolvedValue({ ...baseCustomer, metadata: {} })
     const result = await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
-    expect(result).toEqual({ failed: true, reason: "no_openpay_customer" })
+    expect(result).toEqual({ failed: true, reason: "no_openpay_customer_id" })
     expect(mockSubscriptionService.updateSubscriptions).toHaveBeenCalledWith(expect.objectContaining({ id: SUB_ID, status: "past_due" }))
   })
 
@@ -444,7 +471,7 @@ describe("process-billing", () => {
     expect(mockEventBus.emit).toHaveBeenCalledWith([
       expect.objectContaining({
         name: "subscription.payment_failed",
-        data: expect.objectContaining({ subscription_id: SUB_ID, reason: "no_openpay_customer", customer_email: "luis@test.com", customer_name: "Luis Pérez" }),
+        data: expect.objectContaining({ subscription_id: SUB_ID, reason: "no_openpay_customer_id", customer_email: "luis@test.com", customer_name: "Luis Pérez" }),
       }),
     ])
   })
@@ -457,14 +484,14 @@ describe("process-billing", () => {
     const result = await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
     expect(result).toEqual({ delayed: true, reason: "out_of_stock" })
     expect(mockSubscriptionService.updateSubscriptions).toHaveBeenCalledWith(expect.objectContaining({ id: SUB_ID, status: "delayed_out_of_stock" }))
-    expect(mockOpenpayClient.chargeCustomerCard).not.toHaveBeenCalled()
+    expect(mockChargeClient.chargeSubscription).not.toHaveBeenCalled()
   })
 
   it("inventory check throws → fail-open: proceeds with billing", async () => {
     mockQuery.graph.mockRejectedValue(new Error("query timeout"))
     await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("Inventory check failed"))
-    expect(mockOpenpayClient.chargeCustomerCard).toHaveBeenCalled()
+    expect(mockChargeClient.chargeSubscription).toHaveBeenCalled()
   })
 
   it("allow_backorder true + inventory 0 → proceeds with billing (not delayed)", async () => {
@@ -473,7 +500,7 @@ describe("process-billing", () => {
       return Promise.resolve({ data: [{ id: "var_1", inventory_quantity: 0 }] })
     })
     await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
-    expect(mockOpenpayClient.chargeCustomerCard).toHaveBeenCalled()
+    expect(mockChargeClient.chargeSubscription).toHaveBeenCalled()
   })
 
   it("no default card + empty vault → marks past_due and emits payment_failed", async () => {
@@ -485,21 +512,21 @@ describe("process-billing", () => {
     expect(mockEventBus.emit).toHaveBeenCalledWith([expect.objectContaining({ name: "subscription.payment_failed", data: expect.objectContaining({ reason: "no_card" }) })])
   })
 
-  it("default card set → charges with that card; listCards NOT called", async () => {
+  it("default card set → charges with that card via chargeClient; listCards NOT called", async () => {
     await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
-    expect(mockOpenpayClient.chargeCustomerCard).toHaveBeenCalledWith("op_cust_1", expect.objectContaining({ source_id: "card_1" }))
+    expect(mockChargeClient.chargeSubscription).toHaveBeenCalledWith(expect.objectContaining({ customerId: "op_cust_1", cardId: "card_1" }))
     expect(mockOpenpayClient.listCards).not.toHaveBeenCalled()
   })
 
-  it("chargeCustomerCard throws → marks past_due and emits payment_failed", async () => {
-    mockOpenpayClient.chargeCustomerCard.mockRejectedValue(new Error("insufficient funds"))
+  it("chargeSubscription throws → marks past_due and emits payment_failed", async () => {
+    mockChargeClient.chargeSubscription.mockRejectedValue(new Error("insufficient funds"))
     const result = await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
     expect(result).toEqual({ failed: true, reason: "charge_failed" })
     expect(mockSubscriptionService.updateSubscriptions).toHaveBeenCalledWith(expect.objectContaining({ id: SUB_ID, status: "past_due" }))
   })
 
-  it("chargeCustomerCard throws → error message propagated in event", async () => {
-    mockOpenpayClient.chargeCustomerCard.mockRejectedValue(new Error("insufficient funds"))
+  it("chargeSubscription throws → error message propagated in event", async () => {
+    mockChargeClient.chargeSubscription.mockRejectedValue(new Error("insufficient funds"))
     await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
     expect(mockEventBus.emit).toHaveBeenCalledWith([expect.objectContaining({ name: "subscription.payment_failed", data: expect.objectContaining({ reason: "charge_failed", error: "insufficient funds", amount: 31920 }) })])
   })
@@ -509,10 +536,10 @@ describe("process-billing", () => {
     expect(mockOrderService.createOrders).toHaveBeenCalledWith([expect.objectContaining({ currency_code: "mxn", customer_id: "cust_1", email: "luis@test.com", status: "pending", items: [expect.objectContaining({ unit_price: 31920, quantity: 1, variant_id: "var_1" })] })])
   })
 
-  it("happy path → renewal order item metadata includes is_subscription, cycle_number, openpay_charge_id", async () => {
+  it("happy path → renewal order item metadata includes is_subscription, cycle_number, charge_id, payment_provider", async () => {
     await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
     const [orderPayload] = mockOrderService.createOrders.mock.calls[0][0]
-    expect(orderPayload.items[0].metadata).toMatchObject({ is_subscription: true, cycle_number: 1, openpay_charge_id: "ch_1" })
+    expect(orderPayload.items[0].metadata).toMatchObject({ is_subscription: true, cycle_number: 1, charge_id: "ch_1", payment_provider: "pp_openpay" })
   })
 
   it("happy path → createSubscriptionOrders called with subscription_id, order_id, cycle_number", async () => {
@@ -540,7 +567,7 @@ describe("process-billing", () => {
 
   it("happy path → subscription.renewed event emitted with all required fields", async () => {
     await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
-    expect(mockEventBus.emit).toHaveBeenCalledWith([expect.objectContaining({ name: "subscription.renewed", data: expect.objectContaining({ subscription_id: SUB_ID, order_id: "ord_renewal_1", cycle_number: 1, amount: 31920, customer_email: "luis@test.com", openpay_charge_id: "ch_1" }) })])
+    expect(mockEventBus.emit).toHaveBeenCalledWith([expect.objectContaining({ name: "subscription.renewed", data: expect.objectContaining({ subscription_id: SUB_ID, order_id: "ord_renewal_1", cycle_number: 1, amount: 31920, customer_email: "luis@test.com", charge_id: "ch_1", payment_provider: "pp_openpay" }) })])
   })
 
   it("happy path → returns success with order_id and cycle_number", async () => {
@@ -565,10 +592,10 @@ describe("process-billing", () => {
     expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Envia fulfillment failed"))
   })
 
-  it("OPENPAY_MERCHANT_ID empty → skips with reason openpay_not_configured", async () => {
-    process.env.OPENPAY_MERCHANT_ID = ""
-    const result = await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
-    expect(result).toEqual({ skipped: true, reason: "openpay_not_configured" })
-    expect(mockOpenpayClient.chargeCustomerCard).not.toHaveBeenCalled()
+  it("getChargeClient throws → skips with reason provider_not_configured", async () => {
+    ;(getChargeClient as jest.Mock).mockImplementation(() => { throw new Error("No charge client configured for provider: pp_unknown") })
+    const result = await runBillingLogic(makeDeps(), { subscription_id: SUB_ID, provider_id: "pp_unknown" })
+    expect(result).toEqual({ skipped: true, reason: "provider_not_configured" })
+    expect(mockChargeClient.chargeSubscription).not.toHaveBeenCalled()
   })
 })
