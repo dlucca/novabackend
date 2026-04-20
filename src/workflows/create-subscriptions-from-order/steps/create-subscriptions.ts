@@ -121,28 +121,31 @@ export const createSubscriptionsStep = createStep(
       }
     }
 
-    // Persist the Openpay customer ID on the Medusa customer so future billing works
-    const openpayCustomerId = order.payment_collections?.[0]
-      ?.payments?.[0]?.data?.openpay_customer_id as string | undefined
+    // Persist the payment provider's customer ID + card ID so future billing works.
+    // The /complete route already does this, but we keep it here as a safety net
+    // in case metadata wasn't persisted (e.g., customer not logged in at checkout).
+    const paymentData = order.payment_collections?.[0]?.payments?.[0]?.data as Record<string, any> | undefined
+    const openpayCustomerId = paymentData?.openpay_customer_id as string | undefined
+    const mpCustomerId = paymentData?.mp_customer_id as string | undefined
+    const mpCardId = paymentData?.mp_card_id as string | undefined
 
-    if (order.customer_id && !openpayCustomerId) {
+    if (order.customer_id && !openpayCustomerId && !mpCustomerId) {
       logger.warn(
-        `[create-subscriptions-step] Order ${order.id}: openpay_customer_id not found in payment data. ` +
-        `Future recurring billing for customer ${order.customer_id} will fail.`
+        `[create-subscriptions-step] Order ${order.id}: no provider customer_id found in payment data. ` +
+        `Future recurring billing for customer ${order.customer_id} may fail.`
       )
     }
 
-    if (openpayCustomerId && order.customer_id) {
+    if (order.customer_id && (openpayCustomerId || mpCustomerId)) {
       const [customer] = await customerService.listCustomers({ id: order.customer_id })
       if (customer) {
+        const extra: Record<string, string> = {}
+        if (openpayCustomerId) extra.openpay_customer_id = openpayCustomerId
+        if (mpCustomerId) extra.mp_customer_id = mpCustomerId
+        if (mpCardId) extra.mp_default_card_id = mpCardId
         await customerService.updateCustomers(
           { id: order.customer_id },
-          {
-            metadata: {
-              ...(customer.metadata ?? {}),
-              openpay_customer_id: openpayCustomerId,
-            },
-          }
+          { metadata: { ...(customer.metadata ?? {}), ...extra } }
         )
       }
     }
