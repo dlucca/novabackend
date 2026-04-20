@@ -50,12 +50,17 @@ export class MercadoPagoClient {
 
     if (!response.ok) {
       let message = `MercadoPago error ${response.status}`
+      let raw = ""
       try {
-        const err = await response.json() as { message?: string; error?: string }
+        raw = await response.text()
+        const err = JSON.parse(raw) as { message?: string; error?: string; cause?: unknown }
         if (err.message) message = err.message
         else if (err.error) message = err.error
+        // Surface cause details if MP provided them
+        if (err.cause) message = `${message} | cause=${JSON.stringify(err.cause)}`
       } catch { /* non-JSON body — use the status fallback */ }
-      throw new Error(message)
+      console.error(`[MP API] ${method} ${path} → ${response.status} body=${raw.slice(0, 500)}`)
+      throw new Error(`MP ${method} ${path}: ${message}`)
     }
 
     return await response.json() as T

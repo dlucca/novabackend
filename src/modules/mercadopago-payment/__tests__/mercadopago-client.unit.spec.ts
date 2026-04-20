@@ -13,6 +13,7 @@ function fail(status: number, body: unknown = {}) {
     ok: false,
     status,
     json: () => Promise.resolve(body),
+    text: () => Promise.resolve(typeof body === "string" ? body : JSON.stringify(body)),
   })
 }
 
@@ -189,6 +190,7 @@ describe("MercadoPagoClient", () => {
         ok: false,
         status: 503,
         json: () => Promise.reject(new SyntaxError("bad json")),
+        text: () => Promise.resolve("<html>502 Bad Gateway</html>"),
       }))
       await expect(client.createCustomer({ email: "a@b.com", first_name: "A", last_name: "B" }))
         .rejects.toThrow("MercadoPago error 503")
