@@ -2,10 +2,12 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { SUBSCRIPTION_MODULE } from "../../../modules/subscription"
 import { OpenpayClient } from "../../../modules/openpay-payment/openpay-client"
+import { getChargeClient } from "../../../lib/payment-provider-router"
 import { enviaCreateFulfillmentWorkflow } from "../../envia-create-fulfillment"
 
 type ProcessBillingInput = {
   subscription_id: string
+  provider_id?: string   // defaults to "pp_openpay" if not provided
 }
 
 type BillingResult = {
@@ -78,21 +80,23 @@ export const processBillingStep = createStep(
     }
 
     const customerName = `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim()
-    const openpayCustomerId = customer.metadata?.openpay_customer_id as string | undefined
+    const resolvedProvider = input.provider_id ?? "pp_openpay"
+    const vaultCustomerIdKey = resolvedProvider === "pp_mercadopago" ? "mp_customer_id" : "openpay_customer_id"
+    const vaultCustomerId = customer.metadata?.[vaultCustomerIdKey] as string | undefined
 
-    if (!openpayCustomerId) {
-      logger.error(`${LOG} Customer ${customer.id} has no openpay_customer_id`)
+    if (!vaultCustomerId) {
+      logger.error(`${LOG} Customer ${customer.id} has no ${vaultCustomerIdKey}`)
       await subscriptionService.updateSubscriptions({ id: input.subscription_id, status: "past_due" })
       await eventBus.emit([{
         name: "subscription.payment_failed",
         data: {
           subscription_id: input.subscription_id,
-          reason: "no_openpay_customer",
+          reason: `no_${vaultCustomerIdKey}`,
           customer_email: customer.email,
           customer_name: customerName,
         },
       }])
-      return new StepResponse({ failed: true, reason: "no_openpay_customer" }, null)
+      return new StepResponse({ failed: true, reason: `no_${vaultCustomerIdKey}` }, null)
     }
 
     // 4. Check inventory (fail-open: if check errors, proceed with billing)
@@ -134,23 +138,39 @@ export const processBillingStep = createStep(
       return new StepResponse({ delayed: true, reason: "out_of_stock" }, null)
     }
 
-    // 5. Resolve Openpay credentials
-    const merchantId = process.env.OPENPAY_MERCHANT_ID ?? ""
-    const privateKey = process.env.OPENPAY_PRIVATE_KEY ?? ""
-    const sandbox = process.env.OPENPAY_SANDBOX !== "false"
-
-    if (!merchantId || !privateKey) {
-      logger.error(`${LOG} Openpay credentials not configured`)
-      return new StepResponse({ skipped: true, reason: "openpay_not_configured" }, null)
+    // 5. Resolve charge client via PaymentProviderRouter
+    let chargeClient: ReturnType<typeof getChargeClient>
+    try {
+      chargeClient = getChargeClient(resolvedProvider, container)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      logger.error(`${LOG} Payment provider not configured: ${message}`)
+      return new StepResponse({ skipped: true, reason: "provider_not_configured" }, null)
     }
 
-    const openpayClient = new OpenpayClient({ merchantId, privateKey, sandbox })
-
     // 6. Get card to charge (default card, or first available in vault)
-    let cardId = customer.metadata?.openpay_default_card_id as string | undefined
+    const defaultCardIdKey = resolvedProvider === "pp_mercadopago" ? "mp_default_card_id" : "openpay_default_card_id"
+    let cardId = customer.metadata?.[defaultCardIdKey] as string | undefined
+
     if (!cardId) {
-      const cards = await openpayClient.listCards(openpayCustomerId)
-      cardId = cards[0]?.id
+      if (resolvedProvider === "pp_mercadopago") {
+        const accessToken = process.env.MP_ACCESS_TOKEN ?? ""
+        if (accessToken) {
+          const { MercadoPagoClient } = await import("../../../modules/mercadopago-payment/mercadopago-client.js")
+          const mpClient = new MercadoPagoClient({ accessToken, sandbox: process.env.NODE_ENV !== "production" })
+          const cards = await mpClient.listCards(vaultCustomerId)
+          cardId = cards[0]?.id
+        }
+      } else {
+        const merchantId = process.env.OPENPAY_MERCHANT_ID ?? ""
+        const privateKey = process.env.OPENPAY_PRIVATE_KEY ?? ""
+        const sandbox = process.env.OPENPAY_SANDBOX !== "false"
+        if (merchantId && privateKey) {
+          const openpayClient = new OpenpayClient({ merchantId, privateKey, sandbox })
+          const cards = await openpayClient.listCards(vaultCustomerId)
+          cardId = cards[0]?.id
+        }
+      }
     }
 
     if (!cardId) {
@@ -168,16 +188,16 @@ export const processBillingStep = createStep(
       return new StepResponse({ failed: true, reason: "no_card" }, null)
     }
 
-    // 7. Charge Openpay
-    let charge: any
+    // 7. Charge via provider router
+    let chargeResult: { chargeId: string }
     try {
-      charge = await openpayClient.chargeCustomerCard(openpayCustomerId, {
-        source_id: cardId,
-        // unit_price is stored as-is in Medusa (pesos, not centavos)
+      chargeResult = await chargeClient.chargeSubscription({
+        customerId: vaultCustomerId,
+        cardId,
         amount: subscriptionItem.unit_price,
         currency: (order.currency_code ?? "MXN").toUpperCase(),
         description: `Novapatch renovación: ${subscriptionItem.title ?? "suscripción"}`,
-        order_id: `sub-${input.subscription_id.slice(-8)}-${Date.now()}`,
+        externalReference: `sub-${input.subscription_id.slice(-8)}-${Date.now()}`,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -228,18 +248,20 @@ export const processBillingStep = createStep(
           is_subscription: true,
           interval_days: subscription.interval_days,
           cycle_number: cycleNumber,
-          openpay_charge_id: charge.id,
+          charge_id: chargeResult.chargeId,
+          payment_provider: resolvedProvider,
         },
       }],
       metadata: {
         subscription_id: input.subscription_id,
         cycle_number: cycleNumber,
-        openpay_charge_id: charge.id,
+        charge_id: chargeResult.chargeId,
+        payment_provider: resolvedProvider,
       },
       status: "pending",
     }])
 
-    // 9. Create SubscriptionOrder record (order_id field drives the readOnly link to Order)
+    // 9. Create SubscriptionOrder record
     await subscriptionService.createSubscriptionOrders([{
       subscription_id: input.subscription_id,
       order_id: renewalOrder.id,
@@ -267,7 +289,8 @@ export const processBillingStep = createStep(
         customer_email: customer.email,
         customer_name: customerName,
         next_billing_date: nextBillingDate.toISOString(),
-        openpay_charge_id: charge.id,
+        charge_id: chargeResult.chargeId,
+        payment_provider: resolvedProvider,
       },
     }])
 
