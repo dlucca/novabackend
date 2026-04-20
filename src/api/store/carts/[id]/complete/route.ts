@@ -14,6 +14,8 @@ const CART_FIELDS = [
   "customer.first_name",
   "customer.last_name",
   "customer.metadata",
+  "shipping_address.first_name",
+  "shipping_address.last_name",
   "payment_collection.id",
   "payment_collection.amount",
   "payment_collection.currency_code",
@@ -109,11 +111,21 @@ async function completeMercadoPago({
     return
   }
 
-  // 1. Get or create MercadoPago customer
+  // 1. Get or create MercadoPago customer.
+  // MP rejects empty first/last names (code 108), so we pull from customer
+  // or shipping address and fall back to placeholders if still missing.
+  const firstName =
+    cart.customer?.first_name ||
+    cart.shipping_address?.first_name ||
+    "Cliente"
+  const lastName =
+    cart.customer?.last_name ||
+    cart.shipping_address?.last_name ||
+    firstName // reuse firstName instead of an empty string
   const mpCustomer = await mp.getOrCreateCustomer({
     email,
-    first_name: cart.customer?.first_name ?? "Customer",
-    last_name: cart.customer?.last_name ?? "",
+    first_name: firstName,
+    last_name: lastName,
   })
   const mpCustomerId = mpCustomer.id
   logger.info(`[CompleteCart/MP] mp_customer_id=${mpCustomerId}`)
