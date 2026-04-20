@@ -45,6 +45,14 @@ module.exports = defineConfig({
               sandbox: process.env.OPENPAY_SANDBOX !== "false",
             },
           },
+          {
+            resolve: "./src/modules/mercadopago-payment",
+            id: "mercadopago",
+            options: {
+              accessToken: process.env.MP_ACCESS_TOKEN ?? "",
+              sandbox: process.env.NODE_ENV !== "production",
+            },
+          },
         ],
       },
     },
