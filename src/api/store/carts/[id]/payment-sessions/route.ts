@@ -114,15 +114,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger = req.scope.resolve("logger")
   logger.info(`[PaymentSessions] cart.total=${cartTotal} discount_total=${cart.discount_total ?? 0} collection.amount=${cart.payment_collection?.amount}`)
 
+  // ── Pick provider based on cart currency ──────────────────────────────────
+  // MP for ARS (Argentina), Openpay for everything else (Mexico today)
+  const providerId =
+    collectionCurrency.toLowerCase() === "ars"
+      ? "pp_mercadopago_mercadopago"
+      : "pp_openpay_openpay"
+
   // ── Create or update payment session with current cart total ──────────────
   const existingSession = cart.payment_collection?.payment_sessions?.find(
-    (s: any) => s.provider_id === "pp_openpay_openpay"
+    (s: any) => s.provider_id === providerId
   )
 
   if (!existingSession) {
     try {
       await paymentModuleService.createPaymentSession(paymentCollectionId, {
-        provider_id: "pp_openpay_openpay",
+        provider_id: providerId,
         data: {},
         currency_code: collectionCurrency,
         amount: cartTotal,
