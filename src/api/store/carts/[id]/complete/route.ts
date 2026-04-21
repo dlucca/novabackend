@@ -130,14 +130,11 @@ async function completeMercadoPago({
   const mpCustomerId = mpCustomer.id
   logger.info(`[CompleteCart/MP] mp_customer_id=${mpCustomerId}`)
 
-  // 2. Save card from one-time token → get card ID
-  const card = await mp.createCard(mpCustomerId, mpCardToken)
-  logger.info(`[CompleteCart/MP] card saved card_id=${card.id}`)
-
-  // 3. Get a charge token from the saved card
-  const chargeToken = await mp.getCardToken(mpCustomerId, card.id)
-
-  // 4. Charge
+  // 2. Charge directly with the one-time token.
+  // MP deprecated generating new tokens from saved cards, and the card-token
+  // one-time token is single-use. Passing payer.id + token in the payment
+  // associates the card with the customer automatically after approval, so
+  // we can look it up later for recurring billing.
   const currencyCode = (
     session.currency_code ??
     cart.payment_collection?.currency_code ??
@@ -145,7 +142,7 @@ async function completeMercadoPago({
   ).toUpperCase()
 
   const payment = await mp.charge({
-    token: chargeToken,
+    token: mpCardToken,
     amount: paymentAmount,
     currencyCode,
     description: `Novapatch order - ${cartId}`,
@@ -154,24 +151,39 @@ async function completeMercadoPago({
   })
   logger.info(`[CompleteCart/MP] payment_id=${payment.id} status=${payment.status}`)
 
-  // 5. Persist mp_customer_id and default card to customer metadata
+  // 3. Discover the saved card ID (MP attaches the card on approved payments).
+  let mpCardId: string | undefined
+  try {
+    const cards = await mp.listCards(mpCustomerId)
+    mpCardId = cards[0]?.id
+    if (mpCardId) {
+      logger.info(`[CompleteCart/MP] associated card_id=${mpCardId}`)
+    } else {
+      logger.warn(`[CompleteCart/MP] No card saved for customer ${mpCustomerId} — recurring billing will need fallback`)
+    }
+  } catch (listErr) {
+    logger.error(`[CompleteCart/MP] Failed to list cards: ${listErr instanceof Error ? listErr.message : String(listErr)}`)
+  }
+
+  // 4. Persist mp_customer_id (and card id if available) to customer metadata
   if (cart.customer?.id) {
     try {
       const customerModuleService = req.scope.resolve(Modules.CUSTOMER)
+      const metadataUpdate: Record<string, unknown> = {
+        ...(cart.customer.metadata ?? {}),
+        mp_customer_id: mpCustomerId,
+      }
+      if (mpCardId) metadataUpdate.mp_default_card_id = mpCardId
       await (customerModuleService as any).updateCustomers(cart.customer.id, {
-        metadata: {
-          ...(cart.customer.metadata ?? {}),
-          mp_customer_id: mpCustomerId,
-          mp_default_card_id: card.id,
-        },
+        metadata: metadataUpdate,
       })
-      logger.info(`[CompleteCart/MP] Persisted mp_customer_id and mp_default_card_id to customer ${cart.customer.id}`)
+      logger.info(`[CompleteCart/MP] Persisted MP metadata to customer ${cart.customer.id}`)
     } catch (metaErr) {
       logger.error(`[CompleteCart/MP] Failed to persist MP metadata: ${metaErr instanceof Error ? metaErr.message : String(metaErr)}`)
     }
   }
 
-  // 6. Update payment session with MP charge data
+  // 5. Update payment session with MP charge data
   const paymentModuleService = req.scope.resolve(Modules.PAYMENT)
   await (paymentModuleService as any).updatePaymentSession({
     id: session.id,
@@ -181,7 +193,7 @@ async function completeMercadoPago({
       ...(session.data ?? {}),
       mp_payment_id: String(payment.id),
       mp_customer_id: mpCustomerId,
-      mp_card_id: card.id,
+      ...(mpCardId ? { mp_card_id: mpCardId } : {}),
     },
   })
 
