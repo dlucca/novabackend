@@ -3,6 +3,7 @@ import { Modules } from "@medusajs/framework/utils"
 import * as React from "react"
 import { sendEmail, renderEmail } from "../lib/resend"
 import OrderConfirmation from "../emails/OrderConfirmation"
+import { resolveShippingEta } from "../lib/shipping-eta"
 
 export default async function orderConfirmationEmailHandler({
   event,
@@ -27,6 +28,10 @@ export default async function orderConfirmationEmailHandler({
 
     const name = order.shipping_address?.first_name ?? "Cliente"
     const displayId = order.display_id ?? orderId
+    const estimatedDelivery = resolveShippingEta({
+      country_code: order.shipping_address?.country_code ?? null,
+      province: order.shipping_address?.province ?? null,
+    })
 
     const html = await renderEmail(
       React.createElement(OrderConfirmation, {
@@ -42,6 +47,7 @@ export default async function orderConfirmationEmailHandler({
           })),
         shippingAddress: order.shipping_address ?? null,
         currencyCode: order.currency_code ?? "mxn",
+        estimatedDelivery,
       })
     )
 

@@ -33,6 +33,7 @@ type Props = {
   items: OrderItem[]
   shippingAddress?: ShippingAddress | null
   currencyCode: string
+  estimatedDelivery?: string
 }
 
 function fmt(n: number, currency: string) {
@@ -49,6 +50,7 @@ export default function OrderConfirmation({
   items,
   shippingAddress,
   currencyCode,
+  estimatedDelivery,
 }: Props) {
   const total = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
 
@@ -162,6 +164,13 @@ export default function OrderConfirmation({
           </Column>
         )}
       </Row>
+
+      {estimatedDelivery && (
+        <Text style={{ fontSize: 14, color: "#425066", margin: "12px 0" }}>
+          Envío estimado: <strong style={{ color: "#0D1B35" }}>{estimatedDelivery}</strong>.{" "}
+          Te enviaremos la guía por email en las próximas 24 horas.
+        </Text>
+      )}
 
       <Hr style={{ borderColor: "#E5E7EB", margin: "0 0 20px" }} />
 
