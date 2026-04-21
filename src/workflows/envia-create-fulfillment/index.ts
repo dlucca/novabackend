@@ -19,9 +19,17 @@ export const enviaCreateFulfillmentWorkflow = createWorkflow(
   "envia-create-fulfillment",
   (input: EnviaFulfillmentInput) => {
     const order = fetchOrderForFulfillmentStep(input)
-    const shipment = generateEnviaLabelStep({ order })
-    createMedusaFulfillmentStep({ order, shipment })
-    notifySlackStep({ order, labelUrl: shipment.label })
-    return new WorkflowResponse({ trackingNumber: shipment.trackingNumber })
+    const label = generateEnviaLabelStep({ order })
+    createMedusaFulfillmentStep({
+      order,
+      shipment: label.shipment,
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore — deliveryEstimate consumed in Task 3
+      deliveryEstimate: label.deliveryEstimate,
+      // @ts-ignore — quotedCarrierCost consumed in Task 3
+      quotedCarrierCost: label.quotedCarrierCost,
+    })
+    notifySlackStep({ order, labelUrl: label.shipment.label })
+    return new WorkflowResponse({ trackingNumber: label.shipment.trackingNumber })
   }
 )

@@ -11,6 +11,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { EnviaClient, type EnviaGenerateResult, type EnviaRateResult } from "../../../lib/envia-client"
 import { mapAddress, buildShipmentRequest } from "../../../lib/envia-mappers"
+import { buildLabelOutput } from "./select-winning-rate"
 
 // Carriers to quote in parallel. The Envia API requires one carrier per request.
 // Override via ENVIA_CARRIERS env var (comma-separated) to change without redeploying.
@@ -86,6 +87,7 @@ export const generateEnviaLabelStep = createStep(
 
     // ── 2. Generate label — try cheapest first, fall back on 4xx ─────────────
     let shipment: EnviaGenerateResult | null = null
+    let winningRate: EnviaRateResult | null = null
 
     for (const rate of sortedRates) {
       try {
@@ -95,6 +97,7 @@ export const generateEnviaLabelStep = createStep(
         shipment = await client.generateShipment(
           buildShipmentRequest(destination, items, { carrier: rate.carrier, service: rate.service })
         )
+        winningRate = rate
         // Log the raw response so we can verify field names match our type definition
         logger.info(
           `[envia-create-fulfillment] Label generated — raw response keys: ${Object.keys(shipment as any).join(", ")}`
@@ -123,7 +126,8 @@ export const generateEnviaLabelStep = createStep(
       trackingNumber: shipment.trackingNumber,
     }
 
-    return new StepResponse(shipment, compensationData)
+    const output = buildLabelOutput(shipment, winningRate)
+    return new StepResponse(output, compensationData)
   },
 
   // Compensation: cancel the Envia label if a downstream step (e.g. Medusa fulfillment
