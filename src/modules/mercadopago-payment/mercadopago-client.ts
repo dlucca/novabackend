@@ -111,10 +111,11 @@ export class MercadoPagoClient {
     mpCustomerId: string
     externalReference?: string
   }): Promise<MPPayment> {
+    // MP infers currency from the account's country; passing currency_id
+    // explicitly is rejected with "The name of the parameters is wrong".
     const payment = await this.request<MPPayment>("POST", "/v1/payments", {
       token: params.token,
       transaction_amount: params.amount,
-      currency_id: params.currencyCode.toUpperCase(),
       description: params.description,
       installments: 1,
       payer: { type: "customer", id: params.mpCustomerId },

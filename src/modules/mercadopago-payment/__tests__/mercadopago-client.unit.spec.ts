@@ -141,7 +141,7 @@ describe("MercadoPagoClient", () => {
       expect(mockFetch.mock.calls[0][0]).toBe("https://api.mercadopago.com/v1/payments")
       const body = JSON.parse(mockFetch.mock.calls[0][1].body)
       expect(body.transaction_amount).toBe(60000)
-      expect(body.currency_id).toBe("ARS")
+      expect(body.currency_id).toBeUndefined() // MP infers currency from account
       expect(body.token).toBe("charge_token_abc")
       expect(body.installments).toBe(1)
     })
