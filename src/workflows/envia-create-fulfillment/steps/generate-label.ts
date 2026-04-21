@@ -15,15 +15,12 @@ import { mapAddress, buildShipmentRequest } from "../../../lib/envia-mappers"
 // Carriers to quote in parallel. The Envia API requires one carrier per request.
 // Override via ENVIA_CARRIERS env var (comma-separated) to change without redeploying.
 //
-// Sandbox results (origin: Iztapalapa DIF → destination: Miguel Hidalgo DIF, 2026-04):
-//   noventa9minutos  9.28 MXN  local_same_day   (same-day CDMX only — confirm coverage per order)
-//   ups             11.60 MXN  saver             (unusually cheap in sandbox; verify in prod)
-//   estafeta       228.52 MXN  express           (fails /ship/generate/ in sandbox — sandbox bug)
-//   dhl            304.57 MXN  ground
-//   fedex          564.92 MXN  ground
+// Approved carrier pool for Novapatch MX (2026-04):
+//   paquetexpress, sendex, ampm, estafeta, dhl, fedex
 //
-// Not included by default: redpack (not active in sandbox), paquetexpress (requires colonia field)
-const DEFAULT_CARRIERS = ["noventa9minutos", "ups", "dhl", "fedex", "estafeta"]
+// Note: paquetexpress historically required a colonia field. Our mapAddress() already
+// sends it from the shipping address metadata, so this carrier should now respond.
+const DEFAULT_CARRIERS = ["paquetexpress", "sendex", "ampm", "estafeta", "dhl", "fedex"]
 
 function getCarriersToQuote(): string[] {
   const env = process.env.ENVIA_CARRIERS
