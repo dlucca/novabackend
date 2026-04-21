@@ -71,6 +71,18 @@ export class MercadoPagoPaymentService extends AbstractPaymentProvider<Options> 
       ctx = (input?.context ?? {}) as PaymentContext
     }
 
+    // Fast-path: if the session already has a recorded charge (because the
+    // custom /store/carts/:id/complete route already charged MP directly),
+    // just mark it CAPTURED without touching MP again.
+    const existingPaymentId = paymentSessionData.mp_payment_id as string | undefined
+    if (existingPaymentId) {
+      this.logger_.info(`[MP] authorizePayment skipping charge — mp_payment_id=${existingPaymentId} already present`)
+      return {
+        status: PaymentSessionStatus.CAPTURED,
+        data: paymentSessionData,
+      }
+    }
+
     const mpCardToken = paymentSessionData.mp_card_token as string | undefined
 
     this.logger_.info(`[MP] authorizePayment called. token=${mpCardToken ? "present" : "NONE"}`)
