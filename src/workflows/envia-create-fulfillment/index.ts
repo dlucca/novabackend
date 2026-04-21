@@ -23,10 +23,7 @@ export const enviaCreateFulfillmentWorkflow = createWorkflow(
     createMedusaFulfillmentStep({
       order,
       shipment: label.shipment,
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore — deliveryEstimate consumed in Task 3
       deliveryEstimate: label.deliveryEstimate,
-      // @ts-ignore — quotedCarrierCost consumed in Task 3
       quotedCarrierCost: label.quotedCarrierCost,
     })
     notifySlackStep({ order, labelUrl: label.shipment.label })

@@ -1,12 +1,22 @@
 // src/workflows/envia-create-fulfillment/steps/create-fulfillment.ts
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { createOrderFulfillmentWorkflow, createShipmentWorkflow } from "@medusajs/medusa/core-flows"
+import { Modules } from "@medusajs/framework/utils"
 import type { EnviaGenerateResult } from "../../../lib/envia-client"
 import { getRedisClient, TRACKING_KEY_PREFIX, TRACKING_KEY_TTL_SECONDS } from "../../../lib/redis"
+import { buildOrderMetadataUpdate } from "./build-order-metadata"
 
 export const createMedusaFulfillmentStep = createStep(
   "create-medusa-fulfillment",
-  async ({ order, shipment }: { order: any; shipment: EnviaGenerateResult }, { container }) => {
+  async (
+    {
+      order,
+      shipment,
+      deliveryEstimate,
+      quotedCarrierCost,
+    }: { order: any; shipment: EnviaGenerateResult; deliveryEstimate: string; quotedCarrierCost: string },
+    { container }
+  ) => {
     const logger = container.resolve("logger")
     const locationId = process.env.MEDUSA_WAREHOUSE_LOCATION_ID
     if (!locationId) {
@@ -83,6 +93,23 @@ export const createMedusaFulfillmentStep = createStep(
     logger.info(
       `[envia-create-fulfillment] Shipment registered — fulfillment ${fulfillment.id} visible in admin with tracking`
     )
+
+    // Step 3: Write envia_* keys onto order.metadata (non-blocking)
+    try {
+      const orderService = container.resolve(Modules.ORDER)
+      await (orderService as any).updateOrders(order.id, {
+        metadata: buildOrderMetadataUpdate(order.metadata, shipment, deliveryEstimate, quotedCarrierCost),
+      })
+      logger.info(
+        `[envia-create-fulfillment] order.metadata updated with envia_eta="${deliveryEstimate}"`
+      )
+    } catch (updErr) {
+      logger.warn(
+        `[envia-create-fulfillment] Failed to update order.metadata — label created, but order lacks envia_eta for emails: ${
+          updErr instanceof Error ? updErr.message : String(updErr)
+        }`
+      )
+    }
 
     return new StepResponse(fulfillment.id)
   }
