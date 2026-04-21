@@ -38,12 +38,18 @@ export class MercadoPagoClient {
     this.authHeader = `Bearer ${options.accessToken}`
   }
 
-  private async request<T>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: Record<string, unknown>,
+    extraHeaders?: Record<string, string>
+  ): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers: {
         Authorization: this.authHeader,
         "Content-Type": "application/json",
+        ...(extraHeaders ?? {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     })
@@ -113,14 +119,23 @@ export class MercadoPagoClient {
   }): Promise<MPPayment> {
     // MP infers currency from the account's country; passing currency_id
     // explicitly is rejected with "The name of the parameters is wrong".
-    const payment = await this.request<MPPayment>("POST", "/v1/payments", {
-      token: params.token,
-      transaction_amount: params.amount,
-      description: params.description,
-      installments: 1,
-      payer: { type: "customer", id: params.mpCustomerId },
-      ...(params.externalReference ? { external_reference: params.externalReference } : {}),
-    })
+    // X-Idempotency-Key is required by MP to deduplicate charges on retries.
+    const idempotencyKey = params.externalReference
+      ? `${params.externalReference}-${Date.now()}`
+      : `charge-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const payment = await this.request<MPPayment>(
+      "POST",
+      "/v1/payments",
+      {
+        token: params.token,
+        transaction_amount: params.amount,
+        description: params.description,
+        installments: 1,
+        payer: { type: "customer", id: params.mpCustomerId },
+        ...(params.externalReference ? { external_reference: params.externalReference } : {}),
+      },
+      { "X-Idempotency-Key": idempotencyKey }
+    )
 
     if (payment.status === "rejected") {
       throw new Error(payment.status_detail)
