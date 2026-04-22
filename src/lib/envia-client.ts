@@ -7,6 +7,7 @@ export type EnviaAddress = {
   phone: string
   street: string
   number: string
+  district?: string  // colonia / barrio / neighborhood — required by MX carriers
   city: string
   state: string
   country: string

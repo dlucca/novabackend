@@ -112,15 +112,31 @@ function normalizeState(province: string): string {
   return MX_STATE_CODES[key] ?? province
 }
 
+// Extracts the colonia from address_2. The checkout stores either:
+//   - "<colonia> | <indicaciones>"  (with delivery instructions)
+//   - "<colonia>"                   (no instructions)
+//   - "<depto/piso>"                (AR market — not a colonia)
+//   - "<number...>"                 (rare, already used as street number upstream)
+// We return the portion before the "|" separator; if it's numeric we treat it
+// as a number and return an empty string for the district.
+function extractDistrict(address2: string | null | undefined): string {
+  const raw = (address2 ?? "").trim()
+  if (!raw) return ""
+  if (/^\d/.test(raw)) return "" // numeric → street number, not a colonia
+  return raw.split("|")[0].trim()
+}
+
 export function mapAddress(medusaAddress: MedusaAddress): EnviaAddress {
   const nameParts = [medusaAddress.first_name, medusaAddress.last_name].filter(Boolean)
   const province = medusaAddress.province ?? ""
   const { street, number } = splitStreetNumber(medusaAddress.address_1, medusaAddress.address_2)
+  const district = extractDistrict(medusaAddress.address_2)
   return {
     name: nameParts.length > 0 ? nameParts.join(" ") : "Cliente",
     phone: medusaAddress.phone ?? "",
     street,
     number,
+    ...(district ? { district } : {}),
     city: medusaAddress.city ?? "",
     state: province ? normalizeState(province) : "",
     country: (medusaAddress.country_code ?? "MX").toUpperCase(),

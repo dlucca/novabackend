@@ -5,6 +5,9 @@ export const WAREHOUSE: EnviaAddress = {
   phone: process.env.WAREHOUSE_PHONE ?? "+525500000000",
   street: process.env.WAREHOUSE_STREET ?? "Camino Real a San Lorenzo",
   number: process.env.WAREHOUSE_NUMBER ?? "263",
+  ...(process.env.WAREHOUSE_DISTRICT
+    ? { district: process.env.WAREHOUSE_DISTRICT }
+    : {}),
   city: process.env.WAREHOUSE_CITY ?? "Iztapalapa",
   state: process.env.WAREHOUSE_STATE ?? "DIF",
   country: "MX",
