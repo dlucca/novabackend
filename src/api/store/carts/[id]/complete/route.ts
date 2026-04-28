@@ -254,11 +254,56 @@ async function completeOpenpay({
     }
   }
 
-  // 2. Store card
-  const card = await openpay.storeCard(openpayCustomerId, {
-    token_id: openpayTokenId,
-    device_session_id: deviceSessionId,
-  })
+  // 2. Store card. If the cached openpay_customer_id is from a different
+  // Openpay environment (e.g. sandbox vs. live), Openpay returns "does not
+  // exist" — recreate the customer transparently and retry once.
+  let card
+  try {
+    card = await openpay.storeCard(openpayCustomerId, {
+      token_id: openpayTokenId,
+      device_session_id: deviceSessionId,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!/does not exist/i.test(msg)) throw err
+
+    logger.warn(
+      `[CompleteCart/Openpay] Stale openpay_customer_id=${openpayCustomerId} (${msg}). Recreating.`
+    )
+    const email = customerEmail ?? cart.customer?.email ?? cart.email ?? ""
+    if (!email) {
+      res.status(422).json({ message: "Customer email is required for payment" })
+      return
+    }
+    const fresh = await openpay.createCustomer({
+      name: cart.customer?.first_name ?? "Customer",
+      last_name: cart.customer?.last_name ?? "",
+      email,
+    })
+    openpayCustomerId = fresh.id
+    logger.info(`[CompleteCart/Openpay] Recreated customer id=${openpayCustomerId}`)
+
+    if (cart.customer?.id) {
+      try {
+        const customerModuleService = req.scope.resolve(Modules.CUSTOMER)
+        await (customerModuleService as any).updateCustomers(cart.customer.id, {
+          metadata: {
+            ...(cart.customer.metadata ?? {}),
+            openpay_customer_id: openpayCustomerId,
+          },
+        })
+      } catch (metaErr) {
+        logger.error(
+          `[CompleteCart/Openpay] Failed to persist refreshed openpay_customer_id: ${metaErr instanceof Error ? metaErr.message : String(metaErr)}`
+        )
+      }
+    }
+
+    card = await openpay.storeCard(openpayCustomerId, {
+      token_id: openpayTokenId,
+      device_session_id: deviceSessionId,
+    })
+  }
   logger.info(`[CompleteCart/Openpay] Card stored card_id=${card.id}`)
 
   // 3. Charge with 3DS
