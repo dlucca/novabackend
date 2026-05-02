@@ -1,6 +1,6 @@
-// src/workflows/envia-create-fulfillment/__tests__/select-winning-rate.unit.spec.ts
+// src/__tests__/workflows/envia-create-fulfillment/select-winning-rate.unit.spec.ts
 
-import { buildLabelOutput } from "../steps/select-winning-rate"
+import { buildLabelOutput } from "../../../workflows/envia-create-fulfillment/steps/select-winning-rate"
 import type { EnviaGenerateResult, EnviaRateResult } from "../../../lib/envia-client"
 
 const baseShipment: EnviaGenerateResult = {

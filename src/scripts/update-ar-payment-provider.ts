@@ -21,7 +21,7 @@ export default async function updateArPaymentProvider({ container }: ExecArgs) {
   await updateRegionsWorkflow(container).run({
     input: {
       selector: { id: arRegion.id },
-      update: { payment_providers: ["pp_mercadopago"] },
+      update: { payment_providers: ["pp_mercadopago_mercadopago"] },
     },
   })
 

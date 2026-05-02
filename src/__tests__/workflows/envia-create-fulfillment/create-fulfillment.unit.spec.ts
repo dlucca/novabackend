@@ -1,6 +1,6 @@
-// src/workflows/envia-create-fulfillment/__tests__/create-fulfillment.unit.spec.ts
+// src/__tests__/workflows/envia-create-fulfillment/create-fulfillment.unit.spec.ts
 
-import { buildOrderMetadataUpdate } from "../steps/build-order-metadata"
+import { buildOrderMetadataUpdate } from "../../../workflows/envia-create-fulfillment/steps/build-order-metadata"
 import type { EnviaGenerateResult } from "../../../lib/envia-client"
 
 const baseShipment: EnviaGenerateResult = {
