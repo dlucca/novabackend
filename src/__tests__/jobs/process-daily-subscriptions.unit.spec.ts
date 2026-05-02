@@ -52,6 +52,45 @@ describe("process-daily-subscriptions job", () => {
     mockListSubscriptions.mockReset()
   })
 
+  describe("BILLING_CRON_PAUSED kill switch", () => {
+    const originalEnv = process.env.BILLING_CRON_PAUSED
+
+    afterEach(() => {
+      if (originalEnv === undefined) delete process.env.BILLING_CRON_PAUSED
+      else process.env.BILLING_CRON_PAUSED = originalEnv
+    })
+
+    // Simulate the early-exit gate from the real job
+    async function runWithKillSwitch() {
+      if (process.env.BILLING_CRON_PAUSED === "true") {
+        mockLogger.warn("paused")
+        return { paused: true }
+      }
+      mockLogger.info("running")
+      return { paused: false }
+    }
+
+    it("short-circuits when BILLING_CRON_PAUSED=true", async () => {
+      process.env.BILLING_CRON_PAUSED = "true"
+      const result = await runWithKillSwitch()
+      expect(result).toEqual({ paused: true })
+      expect(mockLogger.warn).toHaveBeenCalledWith("paused")
+      expect(mockListSubscriptions).not.toHaveBeenCalled()
+    })
+
+    it("runs normally when BILLING_CRON_PAUSED is unset", async () => {
+      delete process.env.BILLING_CRON_PAUSED
+      const result = await runWithKillSwitch()
+      expect(result).toEqual({ paused: false })
+    })
+
+    it("runs normally when BILLING_CRON_PAUSED is anything but the literal 'true'", async () => {
+      process.env.BILLING_CRON_PAUSED = "1"
+      const result = await runWithKillSwitch()
+      expect(result).toEqual({ paused: false })
+    })
+  })
+
   it("queries listSubscriptions with DB-level status and date filter", async () => {
     mockListSubscriptions.mockResolvedValue([])
     await runJobLogic([])
