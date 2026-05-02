@@ -23,8 +23,8 @@ export async function resolvePaymentProviderStepFn(
     const subscription = await subscriptionService.retrieveSubscription(input.subscription_id)
 
     if (!subscription.original_order_id) {
-      logger.warn(`[resolve-payment-provider] No original_order_id on subscription ${input.subscription_id} — defaulting to pp_openpay`)
-      return { provider_id: "pp_openpay" }
+      logger.warn(`[resolve-payment-provider] No original_order_id on subscription ${input.subscription_id} — defaulting to pp_openpay_openpay`)
+      return { provider_id: "pp_openpay_openpay" }
     }
 
     const order = await orderService.retrieveOrder(subscription.original_order_id, {
@@ -34,17 +34,17 @@ export async function resolvePaymentProviderStepFn(
     const providerId = order?.payment_collections?.[0]?.payment_sessions?.[0]?.provider_id
 
     if (!providerId) {
-      logger.warn(`[resolve-payment-provider] No payment session on order ${subscription.original_order_id} — defaulting to pp_openpay`)
-      return { provider_id: "pp_openpay" }
+      logger.warn(`[resolve-payment-provider] No payment session on order ${subscription.original_order_id} — defaulting to pp_openpay_openpay`)
+      return { provider_id: "pp_openpay_openpay" }
     }
 
     logger.info(`[resolve-payment-provider] Subscription ${input.subscription_id} → provider: ${providerId}`)
     return { provider_id: providerId }
   } catch (err) {
     logger.error(
-      `[resolve-payment-provider] Error: ${err instanceof Error ? err.message : String(err)} — defaulting to pp_openpay`
+      `[resolve-payment-provider] Error: ${err instanceof Error ? err.message : String(err)} — defaulting to pp_openpay_openpay`
     )
-    return { provider_id: "pp_openpay" }
+    return { provider_id: "pp_openpay_openpay" }
   }
 }
 
