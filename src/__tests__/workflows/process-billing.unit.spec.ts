@@ -185,8 +185,8 @@ async function runBillingLogic(
   }
 
   const customerName = `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim()
-  const resolvedProvider = input.provider_id ?? "pp_openpay"
-  const vaultCustomerIdKey = resolvedProvider === "pp_mercadopago" ? "mp_customer_id" : "openpay_customer_id"
+  const resolvedProvider = input.provider_id ?? "pp_openpay_openpay"
+  const vaultCustomerIdKey = resolvedProvider === "pp_mercadopago_mercadopago" ? "mp_customer_id" : "openpay_customer_id"
   const vaultCustomerId = customer.metadata?.[vaultCustomerIdKey] as string | undefined
 
   if (!vaultCustomerId) {
@@ -249,11 +249,11 @@ async function runBillingLogic(
     return { skipped: true, reason: "provider_not_configured" }
   }
 
-  const defaultCardIdKey = resolvedProvider === "pp_mercadopago" ? "mp_default_card_id" : "openpay_default_card_id"
+  const defaultCardIdKey = resolvedProvider === "pp_mercadopago_mercadopago" ? "mp_default_card_id" : "openpay_default_card_id"
   let cardId = customer.metadata?.[defaultCardIdKey] as string | undefined
 
   if (!cardId) {
-    if (resolvedProvider === "pp_mercadopago") {
+    if (resolvedProvider === "pp_mercadopago_mercadopago") {
       // MercadoPago fallback: not tested here; tested in mp-specific tests
     } else {
       const merchantId = process.env.OPENPAY_MERCHANT_ID ?? ""
@@ -539,7 +539,7 @@ describe("process-billing", () => {
   it("happy path → renewal order item metadata includes is_subscription, cycle_number, charge_id, payment_provider", async () => {
     await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
     const [orderPayload] = mockOrderService.createOrders.mock.calls[0][0]
-    expect(orderPayload.items[0].metadata).toMatchObject({ is_subscription: true, cycle_number: 1, charge_id: "ch_1", payment_provider: "pp_openpay" })
+    expect(orderPayload.items[0].metadata).toMatchObject({ is_subscription: true, cycle_number: 1, charge_id: "ch_1", payment_provider: "pp_openpay_openpay" })
   })
 
   it("happy path → createSubscriptionOrders called with subscription_id, order_id, cycle_number", async () => {
@@ -567,7 +567,7 @@ describe("process-billing", () => {
 
   it("happy path → subscription.renewed event emitted with all required fields", async () => {
     await runBillingLogic(makeDeps(), { subscription_id: SUB_ID })
-    expect(mockEventBus.emit).toHaveBeenCalledWith([expect.objectContaining({ name: "subscription.renewed", data: expect.objectContaining({ subscription_id: SUB_ID, order_id: "ord_renewal_1", cycle_number: 1, amount: 31920, customer_email: "luis@test.com", charge_id: "ch_1", payment_provider: "pp_openpay" }) })])
+    expect(mockEventBus.emit).toHaveBeenCalledWith([expect.objectContaining({ name: "subscription.renewed", data: expect.objectContaining({ subscription_id: SUB_ID, order_id: "ord_renewal_1", cycle_number: 1, amount: 31920, customer_email: "luis@test.com", charge_id: "ch_1", payment_provider: "pp_openpay_openpay" }) })])
   })
 
   it("happy path → returns success with order_id and cycle_number", async () => {
