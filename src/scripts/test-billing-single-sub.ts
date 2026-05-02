@@ -3,16 +3,16 @@
 // Manually run the billing workflow against ONE subscription, bypassing
 // the daily cron and the BILLING_CRON_PAUSED kill switch.
 //
-// Usage:
-//   railway run npx medusa exec ./src/scripts/test-billing-single-sub.ts -- --sub-id=<id> [--dry-run]
+// Usage (positional args — Medusa exec rejects --flags):
+//   railway run npx medusa exec ./src/scripts/test-billing-single-sub.ts <sub_id> [dry-run]
 //
-// --dry-run mode: resolves provider, customer, card — does NOT charge,
-// does NOT create order, does NOT advance next_billing_date.
-// Use this first to confirm the workflow path is healthy.
+// Pass the literal string "dry-run" as the second arg to do a dry run:
+// resolves provider, customer, card — does NOT charge, does NOT create
+// order, does NOT advance next_billing_date.
 //
-// Real run (no flag): executes processBillingCycleWorkflow against the
-// chosen sub. This WILL charge the sandbox card, create a Medusa order,
-// advance next_billing_date by interval_days, and emit subscription.renewed.
+// Omit the second arg (or pass "live") to execute processBillingCycleWorkflow.
+// This WILL charge the sandbox card, create a Medusa order, advance
+// next_billing_date by interval_days, and emit subscription.renewed.
 
 import { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
@@ -23,9 +23,8 @@ import { OpenpayClient } from "../modules/openpay-payment/openpay-client"
 import { SUBSCRIPTION_MODULE } from "../modules/subscription"
 
 function parseArgs(args: string[]) {
-  const subIdArg = args.find((a) => a.startsWith("--sub-id="))
-  const subId = subIdArg ? subIdArg.split("=")[1] : undefined
-  const dryRun = args.includes("--dry-run")
+  const subId = args[0]
+  const dryRun = (args[1] ?? "").toLowerCase() === "dry-run"
   return { subId, dryRun }
 }
 
@@ -34,7 +33,9 @@ export default async function testBillingSingleSub({ container, args }: ExecArgs
   const { subId, dryRun } = parseArgs(args ?? [])
 
   if (!subId) {
-    logger.error("[test-billing] Missing --sub-id=<id>")
+    logger.error(
+      "[test-billing] Missing sub_id. Usage: medusa exec ./src/scripts/test-billing-single-sub.ts <sub_id> [dry-run]"
+    )
     return
   }
 
@@ -136,7 +137,7 @@ export default async function testBillingSingleSub({ container, args }: ExecArgs
     logger.info(`[test-billing]   provider:  ${provider_id}`)
     logger.info(`[test-billing]   vault_id:  ${vaultCustomerId}`)
     logger.info(`[test-billing]   card_id:   ${cardId}`)
-    logger.info("[test-billing] Run again without --dry-run to actually charge.")
+    logger.info("[test-billing] Run again without 'dry-run' arg to actually charge.")
     return
   }
 
