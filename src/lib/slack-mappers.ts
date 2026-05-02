@@ -292,6 +292,68 @@ export function mapSubscriptionCanceledToSlackBlocks(data: {
   ]
 }
 
+export function mapPaymentCapturedToSlackBlocks(order: any): SlackBlock[] {
+  const displayId = order.display_id ? `#${order.display_id}` : order.id
+  const date = formatDate(order.created_at)
+  const currency = (order.currency_code ?? "mxn").toUpperCase()
+  const total =
+    typeof order.total === "number"
+      ? new Intl.NumberFormat("es-MX", {
+          style: "currency",
+          currency: currency === "MXN" ? "MXN" : currency,
+        }).format(order.total)
+      : `${order.total} ${currency}`
+
+  const customerName =
+    [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") ||
+    order.shipping_address?.first_name ||
+    "—"
+  const email = order.email ?? order.customer?.email ?? "—"
+
+  const items = (order.items ?? []).filter(
+    (item: any) => !item.metadata?.is_shipping && !item.is_shipping_cost
+  )
+  const productsList =
+    items
+      .map((item: any) => {
+        const sub = item.metadata?.is_subscription
+          ? ` _(suscripción ${item.metadata.interval_days}d)_`
+          : ""
+        return `• ${item.title} x${item.quantity}${sub}`
+      })
+      .join("\n") || "—"
+
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "💳 Cobro confirmado", emoji: true },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Orden*\n${displayId}` },
+        { type: "mrkdwn", text: `*Total*\n${total}` },
+      ],
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Cliente*\n${customerName}` },
+        { type: "mrkdwn", text: `*Email*\n${email}` },
+      ],
+    },
+    {
+      type: "section",
+      fields: [{ type: "mrkdwn", text: `*Fecha*\n${date}` }],
+    },
+    { type: "divider" },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*Productos*\n${productsList}` },
+    },
+  ]
+}
+
 export function mapFulfillmentToSlackBlocks(order: any, labelUrl: string): SlackBlock[] {
   const displayId = order.display_id ? `#${order.display_id}` : order.id
   const date = formatDate(order.created_at)
