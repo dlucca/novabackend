@@ -8,8 +8,12 @@ describe("resolvePaymentProviderStepFn", () => {
         if (key === "subscriptionModuleService") {
           return { retrieveSubscription: jest.fn().mockResolvedValue(subscriptionData) }
         }
-        if (key === "order") {
-          return { retrieveOrder: jest.fn().mockResolvedValue(orderData) }
+        if (key === "query") {
+          return {
+            graph: jest.fn().mockResolvedValue({
+              data: orderData ? [orderData] : [],
+            }),
+          }
         }
         throw new Error(`Unknown module: ${key}`)
       }),
@@ -20,28 +24,28 @@ describe("resolvePaymentProviderStepFn", () => {
     const subscription = { id: "sub_1", original_order_id: "order_1" }
     const order = {
       id: "order_1",
-      payment_collections: [{ payment_sessions: [{ provider_id: "pp_openpay" }] }],
+      payment_collections: [{ payment_sessions: [{ provider_id: "pp_openpay_openpay" }] }],
     }
     const container = makeContainer(subscription, order)
     const { resolvePaymentProviderStepFn } = await import(
       "../../workflows/process-billing-cycle/steps/resolve-payment-provider"
     )
     const result = await resolvePaymentProviderStepFn({ subscription_id: "sub_1" }, { container })
-    expect(result.provider_id).toBe("pp_openpay")
+    expect(result.provider_id).toBe("pp_openpay_openpay")
   })
 
   it("returns pp_mercadopago when that is the provider", async () => {
     const subscription = { id: "sub_2", original_order_id: "order_2" }
     const order = {
       id: "order_2",
-      payment_collections: [{ payment_sessions: [{ provider_id: "pp_mercadopago" }] }],
+      payment_collections: [{ payment_sessions: [{ provider_id: "pp_mercadopago_mercadopago" }] }],
     }
     const container = makeContainer(subscription, order)
     const { resolvePaymentProviderStepFn } = await import(
       "../../workflows/process-billing-cycle/steps/resolve-payment-provider"
     )
     const result = await resolvePaymentProviderStepFn({ subscription_id: "sub_2" }, { container })
-    expect(result.provider_id).toBe("pp_mercadopago")
+    expect(result.provider_id).toBe("pp_mercadopago_mercadopago")
   })
 
   it("returns pp_openpay as fallback when no payment collection", async () => {
@@ -52,7 +56,7 @@ describe("resolvePaymentProviderStepFn", () => {
       "../../workflows/process-billing-cycle/steps/resolve-payment-provider"
     )
     const result = await resolvePaymentProviderStepFn({ subscription_id: "sub_1" }, { container })
-    expect(result.provider_id).toBe("pp_openpay")
+    expect(result.provider_id).toBe("pp_openpay_openpay")
   })
 
   it("returns pp_openpay as fallback when no original_order_id", async () => {
@@ -62,6 +66,6 @@ describe("resolvePaymentProviderStepFn", () => {
       "../../workflows/process-billing-cycle/steps/resolve-payment-provider"
     )
     const result = await resolvePaymentProviderStepFn({ subscription_id: "sub_1" }, { container })
-    expect(result.provider_id).toBe("pp_openpay")
+    expect(result.provider_id).toBe("pp_openpay_openpay")
   })
 })

@@ -15,7 +15,7 @@ describe("getChargeClient", () => {
     delete process.env.MP_ACCESS_TOKEN
   })
 
-  it("returns an Openpay charge client for pp_openpay", () => {
+  it("returns an Openpay charge client for pp_openpay (legacy bare id)", () => {
     process.env.OPENPAY_MERCHANT_ID = "m123"
     process.env.OPENPAY_PRIVATE_KEY = "pk_test"
     const client = getChargeClient("pp_openpay", mockContainer as any)
@@ -23,9 +23,24 @@ describe("getChargeClient", () => {
     expect(typeof client.chargeSubscription).toBe("function")
   })
 
-  it("returns a MercadoPago charge client for pp_mercadopago", () => {
+  it("returns an Openpay charge client for pp_openpay_openpay (real DB id)", () => {
+    process.env.OPENPAY_MERCHANT_ID = "m123"
+    process.env.OPENPAY_PRIVATE_KEY = "pk_test"
+    const client = getChargeClient("pp_openpay_openpay", mockContainer as any)
+    expect(client).toBeDefined()
+    expect(typeof client.chargeSubscription).toBe("function")
+  })
+
+  it("returns a MercadoPago charge client for pp_mercadopago (legacy bare id)", () => {
     process.env.MP_ACCESS_TOKEN = "TEST-token"
     const client = getChargeClient("pp_mercadopago", mockContainer as any)
+    expect(client).toBeDefined()
+    expect(typeof client.chargeSubscription).toBe("function")
+  })
+
+  it("returns a MercadoPago charge client for pp_mercadopago_mercadopago (real DB id)", () => {
+    process.env.MP_ACCESS_TOKEN = "TEST-token"
+    const client = getChargeClient("pp_mercadopago_mercadopago", mockContainer as any)
     expect(client).toBeDefined()
     expect(typeof client.chargeSubscription).toBe("function")
   })

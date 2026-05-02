@@ -73,12 +73,14 @@ function makeMercadoPagoChargeClient(_container: MedusaContainer): ChargeClient 
 }
 
 export function getChargeClient(providerId: string, container: MedusaContainer): ChargeClient {
-  switch (providerId) {
-    case "pp_openpay":
-      return makeOpenpayChargeClient(container)
-    case "pp_mercadopago":
-      return makeMercadoPagoChargeClient(container)
-    default:
-      throw new Error(`No charge client configured for provider: ${providerId}`)
+  // Medusa V2 stores provider ids as `pp_<identifier>_<config_id>`. Match on
+  // identifier substring to be resilient to either the legacy bare id or the
+  // real DB-stored id.
+  if (providerId === "pp_openpay" || providerId === "pp_openpay_openpay") {
+    return makeOpenpayChargeClient(container)
   }
+  if (providerId === "pp_mercadopago" || providerId === "pp_mercadopago_mercadopago") {
+    return makeMercadoPagoChargeClient(container)
+  }
+  throw new Error(`No charge client configured for provider: ${providerId}`)
 }

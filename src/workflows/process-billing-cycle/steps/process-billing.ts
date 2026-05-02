@@ -7,7 +7,7 @@ import { enviaCreateFulfillmentWorkflow } from "../../envia-create-fulfillment"
 
 type ProcessBillingInput = {
   subscription_id: string
-  provider_id?: string   // defaults to "pp_openpay" if not provided
+  provider_id?: string   // defaults to "pp_openpay_openpay" if not provided
 }
 
 type BillingResult = {
@@ -80,8 +80,8 @@ export const processBillingStep = createStep(
     }
 
     const customerName = `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim()
-    const resolvedProvider = input.provider_id ?? "pp_openpay"
-    const vaultCustomerIdKey = resolvedProvider === "pp_mercadopago" ? "mp_customer_id" : "openpay_customer_id"
+    const resolvedProvider = input.provider_id ?? "pp_openpay_openpay"
+    const vaultCustomerIdKey = resolvedProvider === "pp_mercadopago_mercadopago" ? "mp_customer_id" : "openpay_customer_id"
     const vaultCustomerId = customer.metadata?.[vaultCustomerIdKey] as string | undefined
 
     if (!vaultCustomerId) {
@@ -149,11 +149,11 @@ export const processBillingStep = createStep(
     }
 
     // 6. Get card to charge (default card, or first available in vault)
-    const defaultCardIdKey = resolvedProvider === "pp_mercadopago" ? "mp_default_card_id" : "openpay_default_card_id"
+    const defaultCardIdKey = resolvedProvider === "pp_mercadopago_mercadopago" ? "mp_default_card_id" : "openpay_default_card_id"
     let cardId = customer.metadata?.[defaultCardIdKey] as string | undefined
 
     if (!cardId) {
-      if (resolvedProvider === "pp_mercadopago") {
+      if (resolvedProvider === "pp_mercadopago_mercadopago") {
         const accessToken = process.env.MP_ACCESS_TOKEN ?? ""
         if (accessToken) {
           const { MercadoPagoClient } = await import("../../../modules/mercadopago-payment/mercadopago-client.js")
