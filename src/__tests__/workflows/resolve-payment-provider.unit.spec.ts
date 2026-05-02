@@ -8,8 +8,12 @@ describe("resolvePaymentProviderStepFn", () => {
         if (key === "subscriptionModuleService") {
           return { retrieveSubscription: jest.fn().mockResolvedValue(subscriptionData) }
         }
-        if (key === "order") {
-          return { retrieveOrder: jest.fn().mockResolvedValue(orderData) }
+        if (key === "query") {
+          return {
+            graph: jest.fn().mockResolvedValue({
+              data: orderData ? [orderData] : [],
+            }),
+          }
         }
         throw new Error(`Unknown module: ${key}`)
       }),
