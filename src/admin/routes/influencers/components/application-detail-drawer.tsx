@@ -80,6 +80,16 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                 <Field label="Nombre" value={application.nombre} />
                 <Field label="Email" value={application.email} />
                 <Field label="País" value={application.pais} />
+                {/* New form fields */}
+                <Field
+                  label="Instagram"
+                  value={application.instagram_handle ? `@${application.instagram_handle}` : null}
+                />
+                <Field
+                  label="TikTok"
+                  value={application.tiktok_handle ? `@${application.tiktok_handle}` : null}
+                />
+                {/* Legacy fields (still shown if present on older applications) */}
                 <Field label="Red principal" value={application.red_principal} />
                 <Field label="Handle" value={application.handle} />
                 <Field label="Handle secundario" value={application.handle_secundario} />
@@ -100,11 +110,42 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
               <div className="flex flex-col gap-3">
                 <Heading level="h3">Fit con Novapatch</Heading>
                 <TagList label="Parches de interés" values={application.parches} />
-                <TagList label="Modalidad" values={application.modalidad} />
+                <TagList label="Modalidad" values={application.modalidad ?? []} />
                 <Field label="Media kit" value={application.media_kit} />
                 <Field label="URL media kit" value={application.media_kit_url} />
                 <Field label="Mensaje" value={application.mensaje_libre} />
               </div>
+
+              {application.direccion && (
+                <div className="flex flex-col gap-3">
+                  <Heading level="h3">Dirección de envío</Heading>
+                  <Field
+                    label="Calle y número"
+                    value={
+                      application.direccion.street &&
+                      `${application.direccion.street}${
+                        application.direccion.interior
+                          ? ` Int ${application.direccion.interior}`
+                          : ""
+                      }`
+                    }
+                  />
+                  <Field label="Colonia" value={application.direccion.colonia} />
+                  <Field
+                    label="Ciudad / Estado"
+                    value={
+                      application.direccion.city && application.direccion.state
+                        ? `${application.direccion.city}, ${application.direccion.state}`
+                        : application.direccion.city ?? application.direccion.state
+                    }
+                  />
+                  <Field label="Código postal" value={application.direccion.zip} />
+                  <Field
+                    label="Instrucciones"
+                    value={application.direccion.instructions}
+                  />
+                </div>
+              )}
             </>
           )}
         </Drawer.Body>

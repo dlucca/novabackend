@@ -66,7 +66,11 @@ const InfluencersPage = () => {
       )
 
       setAcceptedWithoutCode(
-        accepted.filter((a) => !existingHandles.has(a.handle.toLowerCase().replace(/^@/, "")))
+        accepted.filter((a) => {
+          // New form: prefer instagram_handle / tiktok_handle. Legacy: handle.
+          const h = a.instagram_handle ?? a.tiktok_handle ?? a.handle ?? ""
+          return !existingHandles.has(h.toLowerCase().replace(/^@/, ""))
+        })
       )
     }
     loadAcceptedWithoutCode()
@@ -78,7 +82,9 @@ const InfluencersPage = () => {
   }
 
   const openModalForApplication = (app: InfluencerApplication) => {
-    setModalDefaults({ name: app.nombre, handle: app.handle })
+    // Prefer the instagram handle (new form) or fall back to tiktok or legacy.
+    const handle = app.instagram_handle ?? app.tiktok_handle ?? app.handle ?? ""
+    setModalDefaults({ name: app.nombre, handle })
     setModalOpen(true)
   }
 

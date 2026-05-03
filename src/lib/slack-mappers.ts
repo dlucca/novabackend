@@ -25,12 +25,29 @@ export function mapInfluencerApplicationToSlackBlocks(app: {
   nombre: string
   email: string
   pais: string
-  red_principal: string
-  handle: string
+  // Legacy single-network fields (older applications)
+  red_principal?: string | null
+  handle?: string | null
+  // New per-network fields (current form)
+  instagram_handle?: string | null
+  tiktok_handle?: string | null
   rango_seguidores: string
   nicho: string[]
   parches: string[]
 }): SlackBlock[] {
+  // Build a "Redes" line that handles both shapes:
+  // - new form: "IG: @x · TT: @y"
+  // - legacy:   "instagram — @x"
+  const redesParts: string[] = []
+  if (app.instagram_handle) redesParts.push(`IG: @${app.instagram_handle}`)
+  if (app.tiktok_handle) redesParts.push(`TT: @${app.tiktok_handle}`)
+  const redesText =
+    redesParts.length > 0
+      ? redesParts.join(" · ")
+      : app.red_principal && app.handle
+      ? `${app.red_principal} — @${app.handle}`
+      : "—"
+
   return [
     {
       type: "header",
@@ -46,7 +63,7 @@ export function mapInfluencerApplicationToSlackBlocks(app: {
     {
       type: "section",
       fields: [
-        { type: "mrkdwn", text: `*Red principal*\n${app.red_principal} — @${app.handle}` },
+        { type: "mrkdwn", text: `*Redes*\n${redesText}` },
         { type: "mrkdwn", text: `*Seguidores*\n${app.rango_seguidores}` },
       ],
     },

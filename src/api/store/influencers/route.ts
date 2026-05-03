@@ -7,15 +7,34 @@ import { mapInfluencerApplicationToSlackBlocks } from "../../../lib/slack-mapper
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const body = req.body as Record<string, unknown>
 
-  const required = ["nombre", "email", "pais", "red_principal", "handle", "link_perfil",
-    "rango_seguidores", "nicho", "tipo_contenido", "genero_audiencia", "edad_audiencia",
-    "tiene_contenido_bienestar", "parches", "modalidad"]
+  // Required fields for the new (current) form. Fields like red_principal,
+  // genero_audiencia, edad_audiencia and modalidad are no longer collected
+  // by the storefront — kept nullable in the model for legacy data.
+  const required = [
+    "nombre", "email", "pais",
+    "rango_seguidores", "nicho", "tipo_contenido",
+    "tiene_contenido_bienestar", "parches",
+  ]
 
   for (const field of required) {
     if (!body[field]) {
       return res.status(400).json({ error: `Campo requerido: ${field}` })
     }
   }
+
+  // At least one of Instagram / TikTok handle must be present.
+  const instagramHandle = (body.instagram_handle as string)?.trim() || null
+  const tiktokHandle = (body.tiktok_handle as string)?.trim() || null
+  if (!instagramHandle && !tiktokHandle) {
+    return res.status(400).json({
+      error: "Indicá al menos un handle: Instagram o TikTok",
+    })
+  }
+
+  // Derive legacy red_principal / handle from whichever handle is present so
+  // existing admin views and Slack mappers keep working without changes.
+  const redPrincipal = instagramHandle ? "instagram" : "tiktok"
+  const primaryHandle = instagramHandle ?? tiktokHandle ?? ""
 
   const influencerService: InfluencerModuleService = req.scope.resolve(INFLUENCER_MODULE)
 
@@ -24,22 +43,25 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       nombre: body.nombre as string,
       email: body.email as string,
       pais: body.pais as string,
-      red_principal: body.red_principal as string,
-      handle: body.handle as string,
-      handle_secundario: (body.handle_secundario as string) || null,
-      link_perfil: body.link_perfil as string,
+      red_principal: redPrincipal,
+      handle: primaryHandle,
+      handle_secundario: null,
+      link_perfil: null,
+      instagram_handle: instagramHandle,
+      tiktok_handle: tiktokHandle,
       rango_seguidores: body.rango_seguidores as string,
       nicho: body.nicho as string[],
       tipo_contenido: body.tipo_contenido as string[],
-      genero_audiencia: body.genero_audiencia as string,
-      edad_audiencia: body.edad_audiencia as string,
+      genero_audiencia: null,
+      edad_audiencia: null,
       tiene_contenido_bienestar: body.tiene_contenido_bienestar as string,
       marcas_previas: (body.marcas_previas as string) || null,
       parches: body.parches as string[],
-      modalidad: body.modalidad as string[],
+      modalidad: null,
       media_kit: (body.media_kit as string) || null,
       media_kit_url: (body.media_kit_url as string) || null,
       mensaje_libre: (body.mensaje_libre as string) || null,
+      direccion: (body.direccion as Record<string, unknown>) ?? null,
       estado: "pendiente",
     } as any,
   ])
@@ -52,6 +74,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       pais: application.pais,
       red_principal: application.red_principal,
       handle: application.handle,
+      instagram_handle: (application as any).instagram_handle ?? null,
+      tiktok_handle: (application as any).tiktok_handle ?? null,
       rango_seguidores: application.rango_seguidores,
       nicho: application.nicho as unknown as string[],
       parches: application.parches as unknown as string[],

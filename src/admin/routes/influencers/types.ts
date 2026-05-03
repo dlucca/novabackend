@@ -32,27 +32,45 @@ export function isInfluencerPromotion(promo: InfluencerPromotion): boolean {
   return promo.campaign?.name?.startsWith("INF|") ?? false
 }
 
+export type InfluencerAddress = {
+  street?: string | null
+  interior?: string | null
+  colonia?: string | null
+  city?: string | null
+  state?: string | null
+  zip?: string | null
+  instructions?: string | null
+}
+
 export type InfluencerApplication = {
   id: string
   nombre: string
   email: string
   pais: string
-  red_principal: string
-  handle: string
+  // Legacy fields (nullable for new applications)
+  red_principal: string | null
+  handle: string | null
   handle_secundario: string | null
-  link_perfil: string
+  link_perfil: string | null
+  // New fields (current form)
+  instagram_handle: string | null
+  tiktok_handle: string | null
   rango_seguidores: string
   nicho: string[]
   tipo_contenido: string[]
-  genero_audiencia: string
-  edad_audiencia: string
+  // Legacy fields (nullable for new applications)
+  genero_audiencia: string | null
+  edad_audiencia: string | null
   tiene_contenido_bienestar: string
   marcas_previas: string | null
   parches: string[]
-  modalidad: string[]
+  // Legacy field (nullable for new applications)
+  modalidad: string[] | null
   media_kit: string | null
   media_kit_url: string | null
   mensaje_libre: string | null
+  // New: shipping address (MX format)
+  direccion: InfluencerAddress | null
   estado: "pendiente" | "aprobado" | "rechazado"
   created_at: string
 }
