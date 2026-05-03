@@ -25,7 +25,11 @@ export default async function orderPaymentCapturedSlackAlert({
   container,
 }: SubscriberArgs<{ id: string }>) {
   const logger = container.resolve("logger")
-  const webhookUrl = process.env.SLACK_BACKEND_WEBHOOK_URL
+  // Prefer a dedicated payments webhook so successful charges go to a sales
+  // channel; fall back to the backend webhook for backwards compatibility.
+  const webhookUrl =
+    process.env.SLACK_PAYMENTS_WEBHOOK_URL ??
+    process.env.SLACK_BACKEND_WEBHOOK_URL
   if (!webhookUrl) return
 
   const orderId = event.data.id
