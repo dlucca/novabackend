@@ -1,29 +1,25 @@
 // src/scripts/test-envia-shipment.ts
 //
-// Genera UNA etiqueta de prueba contra Envia con la WAREHOUSE actual,
-// para validar que los nuevos campos (name, company, email, reference)
-// se honran y que el formulario de recolección de Envia ya no pide
-// "Capture el nombre de la persona...".
+// Standalone runner — NO requiere boot de Medusa ni conexión a la DB.
+// Solo usa ENVIA_API_TOKEN + WAREHOUSE_* del environment para validar
+// directamente contra Envia.
 //
-// Uso:
-//   railway run npx medusa exec ./src/scripts/test-envia-shipment.ts            -> genera y deja vivo
-//   railway run npx medusa exec ./src/scripts/test-envia-shipment.ts cancel     -> genera y cancela
-//   railway run npx medusa exec ./src/scripts/test-envia-shipment.ts only-rate  -> solo cotiza, no genera
+// Uso (con railway run para que inyecte env vars):
+//   railway run npx ts-node --transpile-only ./src/scripts/test-envia-shipment.ts only-rate   # solo cotiza, gratis
+//   railway run npx ts-node --transpile-only ./src/scripts/test-envia-shipment.ts             # genera, queda viva
+//   railway run npx ts-node --transpile-only ./src/scripts/test-envia-shipment.ts cancel      # genera y cancela
 //
 // Notas:
-// - Cualquier shipment generado es REAL. Si NO pasás "cancel", queda activo
-//   en tu cuenta de Envia y consume crédito hasta que lo canceles a mano.
-// - El destino es un domicilio público de prueba (Palacio de Bellas Artes,
-//   CDMX). Cambiar si querés probar contra una zona específica.
+// - El destino es un domicilio público (Palacio de Bellas Artes, CDMX).
+// - Las etiquetas generadas son REALES y consumen crédito en Envia.
+//   Si NO pasás "cancel", quedan activas hasta que las canceles a mano.
+// - "only-rate" no genera nada — útil para confirmar que los nuevos
+//   campos del origin (name / company / email) no rompen el request.
 
-import type { ExecArgs } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { EnviaClient } from "../lib/envia-client"
 import { WAREHOUSE } from "../config/warehouse"
 import type { EnviaAddress, EnviaPackage } from "../lib/envia-client"
 
-// Destino de prueba — Palacio de Bellas Artes, CDMX. Pública, fácil de
-// reconocer y dentro de zona urbana para que cualquier carrier cotice.
 const TEST_DESTINATION: EnviaAddress = {
   name: "Cliente de Prueba",
   phone: "+525555555555",
@@ -47,22 +43,20 @@ const TEST_PACKAGE: EnviaPackage = {
   dimensions: { length: 20, width: 15, height: 3 },
 }
 
-export default async function testEnviaShipment({ container, args }: ExecArgs) {
-  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-  const mode = (args?.[0] ?? "").toLowerCase() // "", "cancel", "only-rate"
-
+async function main() {
+  const mode = (process.argv[2] ?? "").toLowerCase()
   const apiToken = process.env.ENVIA_API_TOKEN
   const apiUrl = process.env.ENVIA_API_URL
   if (!apiToken || !apiUrl) {
-    logger.error(
-      "[test-envia] Faltan ENVIA_API_TOKEN / ENVIA_API_URL. Corré con `railway run` desde un environment configurado."
+    console.error(
+      "[test-envia] Faltan ENVIA_API_TOKEN / ENVIA_API_URL en el environment."
     )
-    return
+    process.exit(1)
   }
 
-  logger.info(`[test-envia] mode=${mode || "generate-keep"}`)
-  logger.info(`[test-envia] origin=${JSON.stringify(WAREHOUSE)}`)
-  logger.info(`[test-envia] destination=${JSON.stringify(TEST_DESTINATION)}`)
+  console.log(`[test-envia] mode=${mode || "generate-keep"}`)
+  console.log(`[test-envia] origin=${JSON.stringify(WAREHOUSE, null, 2)}`)
+  console.log(`[test-envia] destination=${JSON.stringify(TEST_DESTINATION, null, 2)}`)
 
   const client = new EnviaClient({ apiUrl, apiToken })
 
@@ -78,44 +72,42 @@ export default async function testEnviaShipment({ container, args }: ExecArgs) {
     },
   }
 
-  // ─── Solo cotización (más barato, no genera nada) ──────────────────────
   if (mode === "only-rate") {
     try {
       const rate = await client.getRate(shipmentReq)
       if (!rate) {
-        logger.warn(
+        console.warn(
           "[test-envia] Envia no devolvió tarifas. Puede ser una validación de los datos del origin/destination."
         )
         return
       }
-      logger.info(
+      console.log(
         `[test-envia] ✓ Cotización OK — carrier=${rate.carrier} service=${rate.service} ` +
         `precio=${rate.totalPrice} ${rate.currency} ETA=${rate.deliveryEstimate}`
       )
-      logger.info(
-        "[test-envia] Si esto pasa sin errores, los nuevos campos del origin se aceptan. " +
-        "Para validar el FORM de recolección hay que generar etiqueta — corré el script sin args."
+      console.log(
+        "[test-envia] Si esto pasa sin errores, los campos del origin se aceptan."
       )
     } catch (err) {
-      logger.error(
+      console.error(
         `[test-envia] FAIL en cotización: ${err instanceof Error ? err.message : String(err)}`
       )
+      process.exit(1)
     }
     return
   }
 
-  // ─── Generación de etiqueta real ────────────────────────────────────────
   let result
   try {
     result = await client.generateShipment(shipmentReq)
   } catch (err) {
-    logger.error(
+    console.error(
       `[test-envia] FAIL al generar etiqueta: ${err instanceof Error ? err.message : String(err)}`
     )
-    return
+    process.exit(1)
   }
 
-  logger.info(
+  console.log(
     "[test-envia] ✓ Etiqueta generada:\n" +
       `  shipment_id     = ${result.shipmentId}\n` +
       `  carrier         = ${result.carrier} ${result.service}\n` +
@@ -125,7 +117,6 @@ export default async function testEnviaShipment({ container, args }: ExecArgs) {
       `  total_price     = ${result.totalPrice}`
   )
 
-  // ─── Cancelación inmediata si se pidió ──────────────────────────────────
   if (mode === "cancel") {
     try {
       await client.cancelShipment({
@@ -133,21 +124,27 @@ export default async function testEnviaShipment({ container, args }: ExecArgs) {
         carrier: result.carrier,
         trackingNumber: result.trackingNumber,
       })
-      logger.info(`[test-envia] ✓ Etiqueta cancelada (refund pendiente según carrier).`)
+      console.log("[test-envia] ✓ Etiqueta cancelada (refund pendiente según carrier).")
     } catch (err) {
-      logger.error(
+      console.error(
         `[test-envia] FAIL al cancelar (la etiqueta queda activa): ${
           err instanceof Error ? err.message : String(err)
         }`
       )
+      process.exit(1)
     }
     return
   }
 
-  logger.info(
-    "[test-envia] Etiqueta queda ACTIVA en tu cuenta de Envia.\n" +
-      "  → Probá pedir una recolección desde el dashboard para esta etiqueta.\n" +
+  console.log(
+    "[test-envia] La etiqueta queda ACTIVA.\n" +
+      "  → Probá pedir una recolección en el dashboard de Envia para esta etiqueta.\n" +
       "  → Verificá si el form ya NO pide \"Capture el nombre de la persona...\".\n" +
-      "  → Cuando termines de probar, cancelá la etiqueta desde Envia para refund."
+      "  → Cuando termines, cancelala desde Envia para refund."
   )
 }
+
+main().catch((err) => {
+  console.error(`[test-envia] Unexpected error: ${err instanceof Error ? err.stack ?? err.message : String(err)}`)
+  process.exit(1)
+})
