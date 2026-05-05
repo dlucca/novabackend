@@ -3,7 +3,13 @@
 // ─── Shared Address / Package Types ───────────────────────────────────────────
 
 export type EnviaAddress = {
+  // In Envia's schema `name` is the *person's name* (the contact who attends
+  // pickup or receives the package). The business / razón social goes in
+  // `company`. We had `name` set to "Novapatch Bodega" originally, which
+  // tripped Envia's pickup flow because it expected a human name.
   name: string
+  company?: string
+  email?: string
   phone: string
   street: string
   number: string
@@ -12,6 +18,7 @@ export type EnviaAddress = {
   state: string
   country: string
   postalCode: string
+  reference?: string  // free-form note: building color, "frente al parque", etc.
 }
 
 export type EnviaPackage = {
