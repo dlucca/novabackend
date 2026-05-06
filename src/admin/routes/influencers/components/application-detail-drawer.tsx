@@ -1,4 +1,5 @@
-import { Drawer, Heading, Text, Button, Badge } from "@medusajs/ui"
+import { useState } from "react"
+import { Drawer, Heading, Text, Button, Badge, Textarea } from "@medusajs/ui"
 import type { InfluencerApplication } from "../types"
 
 function getAdminHeaders(): Record<string, string> {
@@ -8,10 +9,12 @@ function getAdminHeaders(): Record<string, string> {
     : { "Content-Type": "application/json" }
 }
 
+type Status = InfluencerApplication["estado"]
+
 type Props = {
   application: InfluencerApplication | null
   onClose: () => void
-  onStatusChange: (id: string, estado: "aprobado" | "rechazado") => void
+  onStatusChange: (id: string, app: InfluencerApplication) => void
 }
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
@@ -38,23 +41,57 @@ function TagList({ label, values }: { label: string; values: string[] }) {
   )
 }
 
+function estadoBadge(estado: Status) {
+  if (estado === "aprobado") return <Badge color="green">aprobado</Badge>
+  if (estado === "rechazado") return <Badge color="red">rechazado</Badge>
+  if (estado === "enviado") return <Badge color="blue">enviado</Badge>
+  return <Badge color="orange">pendiente</Badge>
+}
+
 export function ApplicationDetailDrawer({ application, onClose, onStatusChange }: Props) {
-  const handleAction = async (estado: "aprobado" | "rechazado") => {
+  const [busy, setBusy] = useState(false)
+  const [rejectingOpen, setRejectingOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  const patchEstado = async (
+    estado: Status,
+    extra: Record<string, unknown> = {}
+  ) => {
     if (!application) return
-    await fetch(`/admin/influencers/${application.id}`, {
-      method: "PATCH",
-      headers: getAdminHeaders(),
-      body: JSON.stringify({ estado }),
-    })
-    onStatusChange(application.id, estado)
-    onClose()
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/admin/influencers/${application.id}`, {
+        method: "PATCH",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ estado, ...extra }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        setError(json.error ?? "No se pudo actualizar el estado.")
+        return
+      }
+      const json = await res.json()
+      onStatusChange(application.id, json.influencer_application)
+      setRejectingOpen(false)
+      setRejectReason("")
+      onClose()
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const estadoBadge = (estado: string) => {
-    if (estado === "aprobado") return <Badge color="green">aprobado</Badge>
-    if (estado === "rechazado") return <Badge color="red">rechazado</Badge>
-    return <Badge color="orange">pendiente</Badge>
-  }
+  const formatDate = (iso: string | null) =>
+    iso
+      ? new Date(iso).toLocaleString("es-MX", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null
 
   return (
     <Drawer open={!!application} onOpenChange={(v) => !v && onClose()}>
@@ -69,18 +106,55 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
               <div className="flex items-center gap-2">
                 {estadoBadge(application.estado)}
                 <Text size="xsmall" className="text-ui-fg-muted">
+                  Recibida el{" "}
                   {new Date(application.created_at).toLocaleDateString("es-MX", {
                     day: "numeric", month: "long", year: "numeric",
                   })}
                 </Text>
               </div>
 
+              {/* State-transition audit (visible once any transition has happened) */}
+              {(application.aprobado_en || application.rechazado_en || application.enviado_en) && (
+                <div className="flex flex-col gap-1 px-3 py-2 rounded-md bg-ui-bg-subtle">
+                  {application.aprobado_en && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Aprobada: {formatDate(application.aprobado_en)}
+                    </Text>
+                  )}
+                  {application.rechazado_en && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Rechazada: {formatDate(application.rechazado_en)}
+                    </Text>
+                  )}
+                  {application.motivo_rechazo && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Motivo: {application.motivo_rechazo}
+                    </Text>
+                  )}
+                  {application.enviado_en && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Muestras enviadas: {formatDate(application.enviado_en)}
+                    </Text>
+                  )}
+                  {application.pedido_id && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Orden:{" "}
+                      <a
+                        href={`/a/orders/${application.pedido_id}`}
+                        className="text-ui-fg-interactive underline"
+                      >
+                        {application.pedido_id}
+                      </a>
+                    </Text>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-col gap-3">
                 <Heading level="h3">Identidad</Heading>
                 <Field label="Nombre" value={application.nombre} />
                 <Field label="Email" value={application.email} />
                 <Field label="País" value={application.pais} />
-                {/* New form fields */}
                 <Field
                   label="Instagram"
                   value={application.instagram_handle ? `@${application.instagram_handle}` : null}
@@ -89,7 +163,6 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                   label="TikTok"
                   value={application.tiktok_handle ? `@${application.tiktok_handle}` : null}
                 />
-                {/* Legacy fields (still shown if present on older applications) */}
                 <Field label="Red principal" value={application.red_principal} />
                 <Field label="Handle" value={application.handle} />
                 <Field label="Handle secundario" value={application.handle_secundario} />
@@ -146,21 +219,96 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                   />
                 </div>
               )}
+
+              {/* Reject reason inline form */}
+              {rejectingOpen && (
+                <div className="flex flex-col gap-2 p-3 rounded-md border border-ui-border-base bg-ui-bg-subtle">
+                  <Text size="small" weight="plus">Motivo del rechazo (interno, opcional)</Text>
+                  <Textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Notas internas — no se comparte con la postulante."
+                    rows={3}
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="transparent"
+                      size="small"
+                      onClick={() => {
+                        setRejectingOpen(false)
+                        setRejectReason("")
+                      }}
+                      disabled={busy}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="small"
+                      onClick={() => patchEstado("rechazado", { motivo_rechazo: rejectReason })}
+                      isLoading={busy}
+                    >
+                      Confirmar rechazo
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <Text size="small" className="text-ui-fg-error">{error}</Text>
+              )}
             </>
           )}
         </Drawer.Body>
 
         <Drawer.Footer>
-          {application?.estado === "pendiente" && (
+          {application?.estado === "pendiente" && !rejectingOpen && (
             <>
-              <Button variant="secondary" onClick={() => handleAction("rechazado")}>
+              <Button
+                variant="secondary"
+                onClick={() => setRejectingOpen(true)}
+                disabled={busy}
+              >
                 Rechazar
               </Button>
-              <Button onClick={() => handleAction("aprobado")}>
-                Aceptar
+              <Button onClick={() => patchEstado("aprobado")} isLoading={busy}>
+                Aprobar
               </Button>
             </>
           )}
+          {application?.estado === "aprobado" && !rejectingOpen && (
+            <>
+              <Button
+                variant="transparent"
+                onClick={() => patchEstado("pendiente")}
+                disabled={busy}
+              >
+                Volver a pendiente
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setRejectingOpen(true)}
+                disabled={busy}
+              >
+                Rechazar
+              </Button>
+              {/* "Enviar muestras" llega en el chunk 2. Por ahora solo dejamos
+                  el estado approved — el envío se hace manual desde Envia. */}
+              <Button disabled title="Disponible en próxima versión">
+                Enviar muestras
+              </Button>
+            </>
+          )}
+          {application?.estado === "rechazado" && !rejectingOpen && (
+            <Button
+              variant="transparent"
+              onClick={() => patchEstado("pendiente")}
+              disabled={busy}
+            >
+              Volver a pendiente
+            </Button>
+          )}
+          {/* Estado "enviado" es terminal — no acciones, solo cerrar */}
           <Button variant="transparent" onClick={onClose}>Cerrar</Button>
         </Drawer.Footer>
       </Drawer.Content>

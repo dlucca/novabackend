@@ -5,6 +5,10 @@ export const InfluencerApplicationStatus = {
   EN_REVISION: "en_revision",
   APROBADO: "aprobado",
   RECHAZADO: "rechazado",
+  // Approved + samples already shipped. Set ONLY by the
+  // sendInfluencerSamplesWorkflow (chunk 2) — never manually via the PATCH
+  // endpoint, because shipping has side effects (Order, Envia label, email).
+  ENVIADO: "enviado",
 } as const
 
 export const InfluencerApplication = model.define("influencer_application", {
@@ -48,6 +52,21 @@ export const InfluencerApplication = model.define("influencer_application", {
 
   // Meta
   estado: model.text().default("pendiente"),
+
+  // State-transition timestamps. Each is set when the application enters that
+  // state and is left untouched afterwards (so we keep the original timing
+  // even after a revert→re-approve cycle, audit-style).
+  aprobado_en: model.dateTime().nullable(),
+  rechazado_en: model.dateTime().nullable(),
+  enviado_en: model.dateTime().nullable(),
+
+  // Internal-only note from the admin. Not surfaced to the influencer.
+  motivo_rechazo: model.text().nullable(),
+
+  // Set when sendInfluencerSamplesWorkflow completes — links the application
+  // to the Medusa Order that ships the samples. We use text (not a relation)
+  // because Order lives in another module.
+  pedido_id: model.text().nullable(),
 })
 
 export default InfluencerApplication

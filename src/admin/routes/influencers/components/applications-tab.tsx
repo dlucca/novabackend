@@ -10,7 +10,7 @@ function getAdminHeaders(): Record<string, string> {
     : { "Content-Type": "application/json" }
 }
 
-type FilterEstado = "pendiente" | "aprobado" | "rechazado" | "all"
+type FilterEstado = "pendiente" | "aprobado" | "rechazado" | "enviado" | "all"
 
 type Props = {
   refreshKey: number
@@ -43,6 +43,7 @@ export function ApplicationsTab({ refreshKey }: Props) {
     pendiente: applications.filter((a) => a.estado === "pendiente").length,
     aprobado: applications.filter((a) => a.estado === "aprobado").length,
     rechazado: applications.filter((a) => a.estado === "rechazado").length,
+    enviado: applications.filter((a) => a.estado === "enviado").length,
   }
 
   const filtered = filter === "all" ? applications : applications.filter((a) => a.estado === filter)
@@ -53,31 +54,38 @@ export function ApplicationsTab({ refreshKey }: Props) {
     estado: "aprobado" | "rechazado"
   ) => {
     e.stopPropagation()
-    await fetch(`/admin/influencers/${id}`, {
+    const res = await fetch(`/admin/influencers/${id}`, {
       method: "PATCH",
       headers: getAdminHeaders(),
       body: JSON.stringify({ estado }),
     })
+    if (!res.ok) return
+    const json = await res.json()
+    // Use the full server response so new timestamp fields stay in sync
     setApplications((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, estado } : a))
+      prev.map((a) => (a.id === id ? { ...a, ...json.influencer_application } : a))
     )
   }
 
-  const handleStatusChange = (id: string, estado: "aprobado" | "rechazado") => {
+  // Drawer returns the full updated application so timestamps/reason flow back
+  // into the table view without a refetch.
+  const handleStatusChange = (id: string, updated: InfluencerApplication) => {
     setApplications((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, estado } : a))
+      prev.map((a) => (a.id === id ? { ...a, ...updated } : a))
     )
   }
 
   const estadoBadge = (estado: string) => {
     if (estado === "aprobado") return <Badge color="green" size="small">aprobado</Badge>
     if (estado === "rechazado") return <Badge color="red" size="small">rechazado</Badge>
+    if (estado === "enviado") return <Badge color="blue" size="small">enviado</Badge>
     return <Badge color="orange" size="small">pendiente</Badge>
   }
 
   const filters: { key: FilterEstado; label: string; count?: number }[] = [
     { key: "pendiente", label: "Pendientes", count: counts.pendiente },
     { key: "aprobado", label: "Aprobados", count: counts.aprobado },
+    { key: "enviado", label: "Enviados", count: counts.enviado },
     { key: "rechazado", label: "Rechazados", count: counts.rechazado },
     { key: "all", label: "Todos" },
   ]

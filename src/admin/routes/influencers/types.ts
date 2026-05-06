@@ -71,6 +71,12 @@ export type InfluencerApplication = {
   mensaje_libre: string | null
   // New: shipping address (MX format)
   direccion: InfluencerAddress | null
-  estado: "pendiente" | "aprobado" | "rechazado"
+  estado: "pendiente" | "aprobado" | "rechazado" | "enviado"
+  // State-transition audit fields
+  aprobado_en: string | null
+  rechazado_en: string | null
+  enviado_en: string | null
+  motivo_rechazo: string | null
+  pedido_id: string | null
   created_at: string
 }
