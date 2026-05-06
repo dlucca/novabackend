@@ -52,7 +52,47 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
   const [busy, setBusy] = useState(false)
   const [rejectingOpen, setRejectingOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
+  const [shippingOpen, setShippingOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const PARCH_NAMES: Record<string, string> = {
+    energy: "Energy",
+    sleep: "Sleep",
+    glow: "Glow",
+    shield: "Shield",
+    zen: "Zen",
+    woman: "Woman",
+  }
+
+  const ship = async () => {
+    if (!application) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/admin/influencers/${application.id}/ship`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        setError(json.error ?? "No se pudo enviar las muestras.")
+        return
+      }
+      const json = await res.json()
+      // The workflow updates the application server-side. Refetch by simulating
+      // an updated app — the parent can refresh on its own next mount.
+      onStatusChange(application.id, {
+        ...application,
+        estado: "enviado",
+        enviado_en: new Date().toISOString(),
+        pedido_id: json.order_id,
+      })
+      setShippingOpen(false)
+      onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const patchEstado = async (
     estado: Status,
@@ -220,6 +260,57 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                 </div>
               )}
 
+              {/* Ship-confirmation inline form — irreversible action */}
+              {shippingOpen && (
+                <div className="flex flex-col gap-3 p-3 rounded-md border border-ui-border-base bg-ui-bg-subtle">
+                  <Text size="small" weight="plus">Confirmar envío de muestras</Text>
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    Se va a crear una orden con los siguientes parches y se
+                    generará la etiqueta de Envia. <strong>No es reversible.</strong>
+                  </Text>
+                  <div>
+                    <Text size="xsmall" className="text-ui-fg-muted mb-1">Parches a enviar</Text>
+                    <div className="flex flex-wrap gap-1">
+                      {(application.parches ?? []).map((p) => (
+                        <span
+                          key={p}
+                          className="bg-ui-bg-base text-ui-fg-base text-xs px-2 py-0.5 rounded-full"
+                        >
+                          {PARCH_NAMES[p] ?? p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {application.direccion && (
+                    <div>
+                      <Text size="xsmall" className="text-ui-fg-muted mb-1">A esta dirección</Text>
+                      <Text size="xsmall">
+                        {application.direccion.street}
+                        {application.direccion.interior ? ` Int ${application.direccion.interior}` : ""}
+                        {", "}
+                        {application.direccion.colonia}
+                        {", "}
+                        {application.direccion.city}, {application.direccion.state}{" "}
+                        {application.direccion.zip}
+                      </Text>
+                    </div>
+                  )}
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="transparent"
+                      size="small"
+                      onClick={() => setShippingOpen(false)}
+                      disabled={busy}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button size="small" onClick={ship} isLoading={busy}>
+                      Sí, enviar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Reject reason inline form */}
               {rejectingOpen && (
                 <div className="flex flex-col gap-2 p-3 rounded-md border border-ui-border-base bg-ui-bg-subtle">
@@ -276,7 +367,7 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
               </Button>
             </>
           )}
-          {application?.estado === "aprobado" && !rejectingOpen && (
+          {application?.estado === "aprobado" && !rejectingOpen && !shippingOpen && (
             <>
               <Button
                 variant="transparent"
@@ -292,9 +383,10 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
               >
                 Rechazar
               </Button>
-              {/* "Enviar muestras" llega en el chunk 2. Por ahora solo dejamos
-                  el estado approved — el envío se hace manual desde Envia. */}
-              <Button disabled title="Disponible en próxima versión">
+              <Button
+                onClick={() => setShippingOpen(true)}
+                disabled={busy}
+              >
                 Enviar muestras
               </Button>
             </>

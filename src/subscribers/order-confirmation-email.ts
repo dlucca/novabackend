@@ -20,6 +20,15 @@ export default async function orderConfirmationEmailHandler({
 
     if (!order) return
 
+    // Skip influencer sample orders — they get a different, warmer email
+    // from the influencer-samples-shipped subscriber when shipping happens.
+    if (order.metadata?.is_sample === true) {
+      logger.info(
+        `[order-confirmation] Order ${orderId} is an influencer sample — skipping confirmation email`
+      )
+      return
+    }
+
     const email = order.email
     if (!email) {
       logger.warn(`[order-confirmation] No email for order ${orderId}`)
