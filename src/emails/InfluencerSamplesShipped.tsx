@@ -53,7 +53,7 @@ export default function InfluencerSamplesShipped({
 
       <Section style={{ backgroundColor: "#F9FAFB", borderRadius: 8, padding: "16px 20px", marginBottom: 16 }}>
         <Text style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 1, color: GRAY, margin: "0 0 6px" }}>
-          Tu caja incluye
+          Tu kit incluye
         </Text>
         <Text style={{ fontSize: 15, fontWeight: 600, color: NAVY, margin: 0 }}>
           {parchList}
@@ -86,7 +86,7 @@ export default function InfluencerSamplesShipped({
             display: "inline-block",
           }}
         >
-          Rastrear mi caja
+          Rastrear mi kit
         </Button>
       </Section>
 
