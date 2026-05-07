@@ -31,8 +31,10 @@ COPY . .
 # Cache TypeScript incremental output + Medusa admin Vite cache between
 # builds. These directories are populated by the build but invalidated
 # when source changes — the cache mount preserves the unchanged parts.
-RUN --mount=type=cache,target=/app/node_modules/.cache \
-    --mount=type=cache,target=/app/.medusa/admin/node_modules/.vite \
+# Railway requires explicit `id` on every cache mount; the prefix
+# `s/<service-id>-` namespaces the cache to this service.
+RUN --mount=type=cache,id=s/a5d73af9-4d60-47aa-b838-0107c781d02c-build-cache,target=/app/node_modules/.cache \
+    --mount=type=cache,id=s/a5d73af9-4d60-47aa-b838-0107c781d02c-vite-cache,target=/app/.medusa/admin/node_modules/.vite \
     npm run build \
     && ln -sf /app/node_modules /app/.medusa/server/node_modules
 
