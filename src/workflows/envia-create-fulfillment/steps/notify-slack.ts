@@ -6,7 +6,20 @@ import { sendSlackNotification } from "../../../lib/slack-client"
 
 export const notifySlackStep = createStep(
   "notify-slack",
-  async ({ order, labelUrl }: { order: any; labelUrl: string }, { container }) => {
+  async (
+    {
+      order,
+      labelUrl,
+      trackingNumber,
+      carrier,
+    }: {
+      order: any
+      labelUrl: string
+      trackingNumber?: string
+      carrier?: string
+    },
+    { container }
+  ) => {
     const logger = container.resolve("logger")
     const webhookUrl = process.env.SLACK_ORDERS_WEBHOOK_URL
 
@@ -18,7 +31,11 @@ export const notifySlackStep = createStep(
     }
 
     try {
-      const blocks = mapFulfillmentToSlackBlocks(order, labelUrl)
+      // The mapper detects order.metadata.is_sample to render a different
+      // block for influencer kits. trackingNumber/carrier are surfaced in
+      // the sample variant so ops can copy/paste from Slack without opening
+      // the order page.
+      const blocks = mapFulfillmentToSlackBlocks(order, labelUrl, { trackingNumber, carrier })
       await sendSlackNotification(webhookUrl, blocks)
       logger.info(
         `[envia-create-fulfillment] Slack notification sent for order #${order.display_id ?? order.id}`

@@ -26,7 +26,12 @@ export const enviaCreateFulfillmentWorkflow = createWorkflow(
       deliveryEstimate: label.deliveryEstimate,
       quotedCarrierCost: label.quotedCarrierCost,
     })
-    notifySlackStep({ order, labelUrl: label.shipment.label })
+    notifySlackStep({
+      order,
+      labelUrl: label.shipment.label,
+      trackingNumber: label.shipment.trackingNumber,
+      carrier: label.shipment.carrier,
+    })
     return new WorkflowResponse({ trackingNumber: label.shipment.trackingNumber })
   }
 )

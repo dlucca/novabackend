@@ -371,13 +371,67 @@ export function mapPaymentCapturedToSlackBlocks(order: any): SlackBlock[] {
   ]
 }
 
-export function mapFulfillmentToSlackBlocks(order: any, labelUrl: string): SlackBlock[] {
+export function mapFulfillmentToSlackBlocks(
+  order: any,
+  labelUrl: string,
+  extras?: { trackingNumber?: string; carrier?: string }
+): SlackBlock[] {
   const displayId = order.display_id ? `#${order.display_id}` : order.id
   const date = formatDate(order.created_at)
 
   const items = (order.items ?? []).filter(
     (item: any) => !item.metadata?.is_shipping && !item.is_shipping_cost
   )
+
+  // Sample shipments (influencer kits) get a distinct header + extra fields
+  // so the team can tell them apart from real orders at a glance.
+  const isSample = order.metadata?.is_sample === true
+
+  if (isSample) {
+    const addr = order.shipping_address
+    const recipientName = [addr?.first_name, addr?.last_name].filter(Boolean).join(" ") || "—"
+    // Comma-separated parch list — for samples we always send qty=1 each, so no "x1" noise.
+    const productsList =
+      items.map((item: any) => item.title).join(" · ") || "—"
+    const trackingLine = extras?.trackingNumber
+      ? `${extras.trackingNumber}${extras?.carrier ? ` (${extras.carrier})` : ""}`
+      : "—"
+
+    return [
+      {
+        type: "header",
+        text: { type: "plain_text", text: "🎁 Muestra para influencer enviada", emoji: true },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Orden*\n${displayId}` },
+          { type: "mrkdwn", text: `*Fecha*\n${date}` },
+        ],
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Influencer*\n${recipientName}` },
+          { type: "mrkdwn", text: `*Email*\n${order.email ?? "—"}` },
+        ],
+      },
+      { type: "divider" },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*Parches enviados*\n${productsList}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*Tracking*\n${trackingLine}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*Etiqueta*   <${labelUrl}|Ver etiqueta PDF>` },
+      },
+    ]
+  }
+
   const productsList =
     items.map((item: any) => `• ${item.title} x${item.quantity}`).join("\n") || "—"
 
