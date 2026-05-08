@@ -59,15 +59,22 @@ export const createMedusaFulfillmentStep = createStep(
       // Diego: capturing the real error before the workflow framework's
       // compensation chain hides it. Re-throw to keep the existing
       // compensation behavior.
-      const message = err instanceof Error ? err.message : String(err)
-      const stack = err instanceof Error ? err.stack : undefined
-      const cause = err instanceof Error && (err as any).cause
-        ? String((err as any).cause)
-        : undefined
+      // Workflow errors can be plain objects (not Error instances) — fall
+      // back to JSON serialization so we don't end up logging "[object Object]".
+      let serialized: string
+      if (err instanceof Error) {
+        serialized = `${err.message}${err.stack ? `\n${err.stack}` : ""}`
+        const cause = (err as any).cause
+        if (cause) serialized += `\n  cause: ${typeof cause === "string" ? cause : JSON.stringify(cause)}`
+      } else {
+        try {
+          serialized = JSON.stringify(err, Object.getOwnPropertyNames(err ?? {}), 2)
+        } catch {
+          serialized = String(err)
+        }
+      }
       logger.error(
-        `[envia-create-fulfillment] createOrderFulfillmentWorkflow FAILED for order ${order.id}: ${message}` +
-        (cause ? ` (cause: ${cause})` : "") +
-        `\n${stack ?? ""}`
+        `[envia-create-fulfillment] createOrderFulfillmentWorkflow FAILED for order ${order.id}:\n${serialized}`
       )
       throw err
     }

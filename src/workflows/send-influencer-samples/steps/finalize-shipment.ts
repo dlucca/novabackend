@@ -53,11 +53,19 @@ export const finalizeShipmentStep = createStep(
       // Surface the underlying failure clearly so we can diagnose without
       // having to grep across multiple log streams. Re-throw to trigger
       // compensation (which cancels the Envia label if one was created).
-      const message = err instanceof Error ? err.message : String(err)
-      const stack = err instanceof Error ? err.stack : undefined
+      let serialized: string
+      if (err instanceof Error) {
+        serialized = `${err.message}${err.stack ? `\n${err.stack}` : ""}`
+      } else {
+        try {
+          serialized = JSON.stringify(err, Object.getOwnPropertyNames(err ?? {}), 2)
+        } catch {
+          serialized = String(err)
+        }
+      }
       logger.error(
         `[send-influencer-samples] enviaCreateFulfillmentWorkflow failed for order ${order_id} ` +
-        `(application ${data.application_id}): ${message}\n${stack ?? ""}`
+        `(application ${data.application_id}):\n${serialized}`
       )
       throw err
     }
