@@ -48,11 +48,31 @@ function estadoBadge(estado: Status) {
   return <Badge color="orange">pendiente</Badge>
 }
 
+// Shipping flow state machine. Each state shows distinct UI in the drawer
+// so the admin always knows what's happening — clicking "Enviar muestras"
+// previously gave only a tiny button-spinner for 8+ seconds with no
+// feedback, which led people to double-click thinking nothing was happening.
+type ShipPhase =
+  | "idle"          // user hasn't started the ship flow yet
+  | "confirming"    // confirmation card visible, awaiting "Sí, enviar"
+  | "processing"    // workflow running on server
+  | "success"       // workflow returned OK — show tracking + dismiss CTA
+  | "error"         // workflow returned an error — show message + retry
+
+type ShipResult = {
+  order_id: string
+  tracking_number?: string
+  tracking_url?: string
+  carrier?: string
+}
+
 export function ApplicationDetailDrawer({ application, onClose, onStatusChange }: Props) {
   const [busy, setBusy] = useState(false)
   const [rejectingOpen, setRejectingOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
-  const [shippingOpen, setShippingOpen] = useState(false)
+  const [shipPhase, setShipPhase] = useState<ShipPhase>("idle")
+  const [shipResult, setShipResult] = useState<ShipResult | null>(null)
+  const [shipError, setShipError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const PARCH_NAMES: Record<string, string> = {
@@ -64,34 +84,58 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
     woman: "Woman",
   }
 
+  // True while the shipping workflow is in flight — used to disable the
+  // drawer close button so the user can't accidentally navigate away
+  // mid-shipment (which wouldn't cancel the workflow but would lose UI
+  // visibility into the result).
+  const shipInFlight = shipPhase === "processing"
+
   const ship = async () => {
     if (!application) return
-    setBusy(true)
-    setError(null)
+    setShipPhase("processing")
+    setShipError(null)
     try {
       const res = await fetch(`/admin/influencers/${application.id}/ship`, {
         method: "POST",
         headers: getAdminHeaders(),
       })
+      const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        setError(json.error ?? "No se pudo enviar las muestras.")
+        setShipError(json.error ?? "No se pudo enviar las muestras.")
+        setShipPhase("error")
         return
       }
-      const json = await res.json()
-      // The workflow updates the application server-side. Refetch by simulating
-      // an updated app — the parent can refresh on its own next mount.
+      setShipResult({
+        order_id: json.order_id,
+        tracking_number: json.tracking_number,
+        tracking_url: json.tracking_url,
+        carrier: json.carrier,
+      })
+      setShipPhase("success")
+      // Bubble up so the table updates immediately. We don't close the
+      // drawer here — let the user dismiss it after seeing the tracking.
       onStatusChange(application.id, {
         ...application,
         estado: "enviado",
         enviado_en: new Date().toISOString(),
         pedido_id: json.order_id,
       })
-      setShippingOpen(false)
-      onClose()
-    } finally {
-      setBusy(false)
+    } catch (err) {
+      setShipError(err instanceof Error ? err.message : String(err))
+      setShipPhase("error")
     }
+  }
+
+  // Reset shipping UI state when the drawer closes so reopening starts
+  // fresh. Without this, a previous error would still be visible.
+  const closeDrawer = () => {
+    if (shipInFlight) return
+    setShipPhase("idle")
+    setShipResult(null)
+    setShipError(null)
+    setRejectingOpen(false)
+    setRejectReason("")
+    onClose()
   }
 
   const patchEstado = async (
@@ -134,7 +178,7 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
       : null
 
   return (
-    <Drawer open={!!application} onOpenChange={(v) => !v && onClose()}>
+    <Drawer open={!!application} onOpenChange={(v) => !v && closeDrawer()}>
       <Drawer.Content>
         <Drawer.Header>
           <Drawer.Title>{application?.nombre ?? "Postulación"}</Drawer.Title>
@@ -260,8 +304,9 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                 </div>
               )}
 
-              {/* Ship-confirmation inline form — irreversible action */}
-              {shippingOpen && (
+              {/* Ship flow — confirming state. Shows what will be shipped
+                  and asks for explicit confirmation. */}
+              {shipPhase === "confirming" && (
                 <div className="flex flex-col gap-3 p-3 rounded-md border border-ui-border-base bg-ui-bg-subtle">
                   <Text size="small" weight="plus">Confirmar envío de muestras</Text>
                   <Text size="xsmall" className="text-ui-fg-muted">
@@ -299,13 +344,106 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                     <Button
                       variant="transparent"
                       size="small"
-                      onClick={() => setShippingOpen(false)}
-                      disabled={busy}
+                      onClick={() => setShipPhase("idle")}
                     >
                       Cancelar
                     </Button>
-                    <Button size="small" onClick={ship} isLoading={busy}>
+                    <Button size="small" onClick={ship}>
                       Sí, enviar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Ship flow — processing state. The workflow takes 8-30s
+                  end-to-end (Envia rate quotes + label generation +
+                  Medusa fulfillment + email). Show a clear "in progress"
+                  card so the admin doesn't double-click thinking
+                  nothing's happening. */}
+              {shipPhase === "processing" && (
+                <div className="flex flex-col items-center gap-3 p-6 rounded-md border-2 border-dashed border-ui-border-base bg-ui-bg-subtle">
+                  <div
+                    className="w-8 h-8 rounded-full border-[3px] border-ui-border-strong border-t-transparent animate-spin"
+                    aria-hidden
+                  />
+                  <Text size="small" weight="plus">Procesando envío…</Text>
+                  <Text size="xsmall" className="text-ui-fg-muted text-center">
+                    Reservando inventario, generando etiqueta de Envia y enviando email.
+                    <br />
+                    Esto puede tardar entre 10 y 30 segundos.
+                    <br />
+                    <strong>No cierres esta ventana.</strong>
+                  </Text>
+                </div>
+              )}
+
+              {/* Ship flow — success state. Shows tracking info before
+                  letting the admin dismiss, so they have a chance to
+                  copy/save the guide number. */}
+              {shipPhase === "success" && shipResult && (
+                <div className="flex flex-col gap-3 p-4 rounded-md border border-ui-tag-green-border bg-ui-tag-green-bg">
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontSize: 18 }}>✅</span>
+                    <Text size="small" weight="plus" className="text-ui-tag-green-text">
+                      Muestras enviadas
+                    </Text>
+                  </div>
+                  {shipResult.tracking_number && (
+                    <div>
+                      <Text size="xsmall" className="text-ui-fg-muted mb-0.5">Número de guía</Text>
+                      <Text size="small" weight="plus">
+                        {shipResult.tracking_number}
+                        {shipResult.carrier ? ` · ${shipResult.carrier}` : ""}
+                      </Text>
+                    </div>
+                  )}
+                  {shipResult.tracking_url && (
+                    <a
+                      href={shipResult.tracking_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-ui-fg-interactive text-xs underline"
+                    >
+                      Ver tracking en Envia ↗
+                    </a>
+                  )}
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    Se notificó al canal #orders en Slack y se envió el email
+                    al influencer con el link de tracking.
+                  </Text>
+                </div>
+              )}
+
+              {/* Ship flow — error state. Show the message and offer a
+                  retry path. The Redis lock has a 5-min TTL so retries
+                  shortly after failure may bounce — that's intentional
+                  to prevent duplicate labels. */}
+              {shipPhase === "error" && (
+                <div className="flex flex-col gap-3 p-3 rounded-md border border-ui-tag-red-border bg-ui-tag-red-bg">
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontSize: 18 }}>⚠️</span>
+                    <Text size="small" weight="plus" className="text-ui-tag-red-text">
+                      No se pudo completar el envío
+                    </Text>
+                  </div>
+                  {shipError && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      {shipError}
+                    </Text>
+                  )}
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="transparent"
+                      size="small"
+                      onClick={() => {
+                        setShipPhase("idle")
+                        setShipError(null)
+                      }}
+                    >
+                      Cerrar
+                    </Button>
+                    <Button size="small" onClick={ship}>
+                      Reintentar
                     </Button>
                   </div>
                 </div>
@@ -367,7 +505,7 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
               </Button>
             </>
           )}
-          {application?.estado === "aprobado" && !rejectingOpen && !shippingOpen && (
+          {application?.estado === "aprobado" && !rejectingOpen && shipPhase === "idle" && (
             <>
               <Button
                 variant="transparent"
@@ -384,7 +522,7 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                 Rechazar
               </Button>
               <Button
-                onClick={() => setShippingOpen(true)}
+                onClick={() => setShipPhase("confirming")}
                 disabled={busy}
               >
                 Enviar muestras
@@ -400,8 +538,17 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
               Volver a pendiente
             </Button>
           )}
-          {/* Estado "enviado" es terminal — no acciones, solo cerrar */}
-          <Button variant="transparent" onClick={onClose}>Cerrar</Button>
+          {/* Estado "enviado" es terminal — no acciones, solo cerrar.
+              Cerrar también queda deshabilitado mientras hay un envío en
+              curso para evitar perder visibilidad del resultado. */}
+          <Button
+            variant="transparent"
+            onClick={closeDrawer}
+            disabled={shipInFlight}
+            title={shipInFlight ? "Esperá a que termine el envío" : undefined}
+          >
+            Cerrar
+          </Button>
         </Drawer.Footer>
       </Drawer.Content>
     </Drawer>

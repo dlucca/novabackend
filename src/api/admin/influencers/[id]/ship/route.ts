@@ -6,12 +6,30 @@
 // Body is empty — the workflow reads the parches + address from the
 // application itself, so admins can't accidentally ship a different set
 // than what was approved.
+//
+// Idempotency: a Redis lock prevents the same application from generating
+// multiple Envia labels if the user double-clicks or the browser retries.
+// The lock is held for the duration of the workflow + 5-min TTL safety.
 
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { sendInfluencerSamplesWorkflow } from "../../../../../workflows/send-influencer-samples"
+import {
+  acquireInfluencerShipLock,
+  releaseInfluencerShipLock,
+} from "../../../../../lib/redis"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params
+
+  // Atomic SET NX — first request wins, others bounce off. We want this
+  // BEFORE the workflow starts so we don't even create a Medusa order on
+  // a duplicate request.
+  const acquired = await acquireInfluencerShipLock(id)
+  if (!acquired) {
+    return res.status(409).json({
+      error: "Ya hay un envío en curso para esta postulación. Esperá unos segundos y refrescá.",
+    })
+  }
 
   try {
     const { result } = await sendInfluencerSamplesWorkflow(req.scope).run({
@@ -30,5 +48,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       return res.status(422).json({ error: message })
     }
     return res.status(500).json({ error: message })
+  } finally {
+    // Release the lock no matter what — success, validation failure, or
+    // hard error. If the workflow crashed in a way that prevented release,
+    // the 5-min TTL will eventually clean it up.
+    await releaseInfluencerShipLock(id)
   }
 }
