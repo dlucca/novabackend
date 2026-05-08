@@ -41,7 +41,10 @@ export const finalizeShipmentStep = createStep(
       )
     }
 
-    let enviaResult: Awaited<ReturnType<ReturnType<typeof enviaCreateFulfillmentWorkflow>["run"]>>
+    // Cast to any so TS lets us read `trackingNumber` off the result without
+    // unwrapping the deeply-nested workflow generic. The shape is verified
+    // at runtime below.
+    let enviaResult: any
     try {
       enviaResult = await enviaCreateFulfillmentWorkflow(container).run({
         input: { orderId: order_id },
