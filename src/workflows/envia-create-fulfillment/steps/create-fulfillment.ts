@@ -28,25 +28,49 @@ export const createMedusaFulfillmentStep = createStep(
     logger.info(
       `[envia-create-fulfillment] Creating fulfillment — tracking: "${shipment.trackingNumber}", carrier: "${shipment.carrier}"`
     )
+    logger.info(
+      `[envia-create-fulfillment] Order details — id=${order.id} status=${order.status} ` +
+      `items=${order.items?.length ?? 0} hasShippingMethods=${(order.shipping_methods?.length ?? 0) > 0} ` +
+      `metadata.is_sample=${Boolean(order.metadata?.is_sample)}`
+    )
 
     // Step 1: Create the fulfillment record with Envia metadata
-    const { result: fulfillment } = await createOrderFulfillmentWorkflow(container).run({
-      input: {
-        order_id: order.id,
-        location_id: locationId,
-        items: order.items.map((item: any) => ({ id: item.id, quantity: item.quantity })),
-        metadata: {
+    let fulfillment: { id: string }
+    try {
+      const result = await createOrderFulfillmentWorkflow(container).run({
+        input: {
           order_id: order.id,
-          envia_shipment_id: String(shipment.shipmentId),
-          envia_track_url: shipment.trackUrl,
-          envia_label_url: shipment.label,
-          carrier: shipment.carrier,
-          service: shipment.service,
-          envia_carrier_cost: String(shipment.totalPrice),
-          envia_currency: shipment.currency,
+          location_id: locationId,
+          items: order.items.map((item: any) => ({ id: item.id, quantity: item.quantity })),
+          metadata: {
+            order_id: order.id,
+            envia_shipment_id: String(shipment.shipmentId),
+            envia_track_url: shipment.trackUrl,
+            envia_label_url: shipment.label,
+            carrier: shipment.carrier,
+            service: shipment.service,
+            envia_carrier_cost: String(shipment.totalPrice),
+            envia_currency: shipment.currency,
+          },
         },
-      },
-    })
+      })
+      fulfillment = result.result as { id: string }
+    } catch (err) {
+      // Diego: capturing the real error before the workflow framework's
+      // compensation chain hides it. Re-throw to keep the existing
+      // compensation behavior.
+      const message = err instanceof Error ? err.message : String(err)
+      const stack = err instanceof Error ? err.stack : undefined
+      const cause = err instanceof Error && (err as any).cause
+        ? String((err as any).cause)
+        : undefined
+      logger.error(
+        `[envia-create-fulfillment] createOrderFulfillmentWorkflow FAILED for order ${order.id}: ${message}` +
+        (cause ? ` (cause: ${cause})` : "") +
+        `\n${stack ?? ""}`
+      )
+      throw err
+    }
 
     // Write tracking→fulfillmentId index to Redis for O(1) webhook lookup
     try {
