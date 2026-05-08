@@ -153,14 +153,28 @@ export class EnviaClient {
     return results?.[0] ?? null
   }
 
-  /** Generates a shipping label using the specified carrier + service. */
+  /**
+   * Generates a shipping label using the specified carrier + service.
+   *
+   * IMPORTANT: this call is NOT retried on transient errors. Label
+   * generation has a real side effect — Envia creates a label and
+   * charges credit. If we get a 502 / timeout / ECONNRESET AFTER Envia
+   * already created the label server-side (common when the API is
+   * fronted by Cloudflare), retrying creates a duplicate label.
+   *
+   * This bug shipped 3 duplicate FedEx labels for a single influencer
+   * sample test in 2026-05. Fix: surface the error to the caller and
+   * let them decide. The caller (the Envia workflow) already has a
+   * carrier fallback loop; if a generate fails, the workflow can pick
+   * the next carrier instead of duplicating with the same one.
+   *
+   * Rate quotes (getRate) ARE retried — those are pure reads.
+   */
   async generateShipment(req: EnviaShipmentRequest): Promise<EnviaGenerateResult> {
-    return withRetry(async () => {
-      const results = await this.post<EnviaGenerateResult[]>("/ship/generate/", req)
-      const result = results[0]
-      if (!result) throw new Error("Envia /ship/generate/ returned empty result set")
-      return result
-    })
+    const results = await this.post<EnviaGenerateResult[]>("/ship/generate/", req)
+    const result = results[0]
+    if (!result) throw new Error("Envia /ship/generate/ returned empty result set")
+    return result
   }
 
   /**

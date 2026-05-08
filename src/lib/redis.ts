@@ -29,16 +29,34 @@ export const INFLUENCER_SHIP_LOCK_TTL_SECONDS = 300
  * Uses Redis SET NX so the operation is atomic — even with concurrent
  * workers, only one acquires the lock.
  *
- * If Redis is not configured, returns true (no locking — best-effort dev mode).
+ * If Redis is not configured, prints a noisy warning and returns true
+ * (best-effort dev mode). In production this means the lock is a no-op
+ * and duplicate labels are possible — REDIS_URL must be set.
  */
 export async function acquireInfluencerShipLock(
   applicationId: string
 ): Promise<boolean> {
   const redis = getRedisClient()
-  if (!redis) return true
+  if (!redis) {
+    console.warn(
+      `[acquireInfluencerShipLock] REDIS_URL not set — lock is a no-op. ` +
+      `Duplicate-label protection is DISABLED. Application: ${applicationId}`
+    )
+    return true
+  }
   const key = `${INFLUENCER_SHIP_LOCK_PREFIX}${applicationId}`
-  const result = await redis.set(key, "1", "EX", INFLUENCER_SHIP_LOCK_TTL_SECONDS, "NX")
-  return result === "OK"
+  try {
+    const result = await redis.set(key, "1", "EX", INFLUENCER_SHIP_LOCK_TTL_SECONDS, "NX")
+    return result === "OK"
+  } catch (err) {
+    // Redis errored — fail closed by reporting the lock as not acquired.
+    // Better to refuse to ship than to ship duplicates.
+    console.error(
+      `[acquireInfluencerShipLock] Redis error for application ${applicationId}: ` +
+      (err instanceof Error ? err.message : String(err))
+    )
+    return false
+  }
 }
 
 /**
