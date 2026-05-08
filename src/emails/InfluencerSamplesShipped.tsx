@@ -99,6 +99,13 @@ export default function InfluencerSamplesShipped({
       </Text>
 
       <Text style={{ color: GRAY, fontSize: 14, margin: "0 0 8px", lineHeight: 1.6 }}>
+        Te dejamos unos tips rápidos para usarlo bien: úsalo entre 8 y 10
+        horas, cambia la zona donde lo colocas cada vez que uses uno nuevo y
+        retíralo con cuidado. Si lo humedeces con agua o lo quitas en la
+        ducha, sale más fácil y evitas jalar la piel.
+      </Text>
+
+      <Text style={{ color: GRAY, fontSize: 14, margin: "0 0 8px", lineHeight: 1.6 }}>
         Si tienes cualquier duda mientras esperas, escríbenos a{" "}
         <a href="mailto:hola@novapatch.care" style={{ color: CORAL, fontWeight: 600 }}>
           hola@novapatch.care
