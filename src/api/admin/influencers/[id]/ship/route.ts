@@ -24,12 +24,19 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   // Atomic SET NX — first request wins, others bounce off. We want this
   // BEFORE the workflow starts so we don't even create a Medusa order on
   // a duplicate request.
+  const requestId = req.headers["x-request-id"] ?? Math.random().toString(36).slice(2, 10)
+  const logger: any = (req.scope as any).resolve?.("logger") ?? console
+  const logPrefix = `[ship-route ${requestId}]`
+
+  logger.info(`${logPrefix} Attempting to acquire lock for application ${id}`)
   const acquired = await acquireInfluencerShipLock(id)
   if (!acquired) {
+    logger.warn(`${logPrefix} Lock REJECTED for application ${id} — duplicate or in-flight request`)
     return res.status(409).json({
       error: "Ya hay un envío en curso para esta postulación. Esperá unos segundos y refrescá.",
     })
   }
+  logger.info(`${logPrefix} Lock ACQUIRED for application ${id} — running workflow`)
 
   try {
     const { result } = await sendInfluencerSamplesWorkflow(req.scope).run({
@@ -53,5 +60,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     // hard error. If the workflow crashed in a way that prevented release,
     // the 5-min TTL will eventually clean it up.
     await releaseInfluencerShipLock(id)
+    logger.info(`${logPrefix} Lock RELEASED for application ${id}`)
   }
 }

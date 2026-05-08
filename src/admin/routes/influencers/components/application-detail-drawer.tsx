@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Drawer, Heading, Text, Button, Badge, Textarea } from "@medusajs/ui"
 import type { InfluencerApplication } from "../types"
 
@@ -90,8 +90,20 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
   // visibility into the result).
   const shipInFlight = shipPhase === "processing"
 
+  // Synchronous mutex via useRef — React state updates are async, so
+  // setShipPhase("processing") doesn't block a fast double-click from
+  // entering ship() twice before the next render. A ref does, because
+  // ref reads/writes are immediate.
+  const shippingInFlightRef = useRef(false)
+
   const ship = async () => {
     if (!application) return
+    if (shippingInFlightRef.current) {
+      // Defensive — UI button is also disabled, but if both clicks slip
+      // through during the same render frame, the second one bounces here.
+      return
+    }
+    shippingInFlightRef.current = true
     setShipPhase("processing")
     setShipError(null)
     try {
@@ -123,6 +135,10 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
     } catch (err) {
       setShipError(err instanceof Error ? err.message : String(err))
       setShipPhase("error")
+    } finally {
+      // Release the synchronous mutex regardless of outcome so the user
+      // can reintentar from the error card.
+      shippingInFlightRef.current = false
     }
   }
 
@@ -348,7 +364,11 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                     >
                       Cancelar
                     </Button>
-                    <Button size="small" onClick={ship}>
+                    <Button
+                      size="small"
+                      onClick={ship}
+                      disabled={shipPhase !== "confirming"}
+                    >
                       Sí, enviar
                     </Button>
                   </div>
