@@ -41,12 +41,30 @@ export const finalizeShipmentStep = createStep(
       )
     }
 
-    const enviaResult = await enviaCreateFulfillmentWorkflow(container).run({
-      input: { orderId: order_id },
-    })
+    let enviaResult: Awaited<ReturnType<ReturnType<typeof enviaCreateFulfillmentWorkflow>["run"]>>
+    try {
+      enviaResult = await enviaCreateFulfillmentWorkflow(container).run({
+        input: { orderId: order_id },
+      })
+    } catch (err) {
+      // Surface the underlying failure clearly so we can diagnose without
+      // having to grep across multiple log streams. Re-throw to trigger
+      // compensation (which cancels the Envia label if one was created).
+      const message = err instanceof Error ? err.message : String(err)
+      const stack = err instanceof Error ? err.stack : undefined
+      logger.error(
+        `[send-influencer-samples] enviaCreateFulfillmentWorkflow failed for order ${order_id} ` +
+        `(application ${data.application_id}): ${message}\n${stack ?? ""}`
+      )
+      throw err
+    }
 
     const trackingNumber = enviaResult.result?.trackingNumber
     if (!trackingNumber) {
+      logger.error(
+        `[send-influencer-samples] No tracking number in envia result for order ${order_id} — ` +
+        `result was: ${JSON.stringify(enviaResult.result)}`
+      )
       throw new Error("Envia no devolvió tracking number")
     }
 

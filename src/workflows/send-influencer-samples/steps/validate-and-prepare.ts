@@ -103,8 +103,17 @@ export const validateAndPrepareStep = createStep(
     // when generating labels, but Medusa's order shipping_address uses the
     // legacy `address_1 + address_2` pair. The Envia adapter that runs later
     // already knows how to read this pair.
-    const street = direccion.street ?? ""
-    const interior = direccion.interior ? ` Int ${direccion.interior}` : ""
+    //
+    // Sanitize the interior — influencers often write "Int. 102" or "INT 5"
+    // in the interior field, which would produce "Int Int. 102" if we
+    // blindly prepend our own "Int" prefix. Strip any leading variant of
+    // "int" / "interior" / "depto" before composing.
+    const street = (direccion.street ?? "").trim()
+    const sanitizedInterior = (direccion.interior ?? "")
+      .trim()
+      .replace(/^(int(erior)?\.?|depto\.?|departamento)\s*/i, "")
+      .trim()
+    const interior = sanitizedInterior ? ` Int ${sanitizedInterior}` : ""
 
     const data: ValidatedSampleData = {
       application_id,
