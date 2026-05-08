@@ -6,7 +6,9 @@
 //   1. validate-and-prepare        — load app, resolve patch variants, build line items
 //   2. upsert-customer             — get-or-create customer for the influencer's email
 //   3. create-sample-order         — Medusa order, all items at $0
-//   4. finalize-shipment           — Envia label + mark application shipped + emit email event
+//   4. reserve-sample-inventory    — create stock reservations (real orders do this
+//                                    via cart→checkout→payment; samples skip that flow)
+//   5. finalize-shipment           — Envia label + mark application shipped + emit email event
 //
 // Triggered by: POST /admin/influencers/:id/ship
 
@@ -14,6 +16,7 @@ import { createWorkflow, WorkflowResponse } from "@medusajs/framework/workflows-
 import { validateAndPrepareStep } from "./steps/validate-and-prepare"
 import { upsertCustomerStep } from "./steps/upsert-customer"
 import { createSampleOrderStep } from "./steps/create-sample-order"
+import { reserveSampleInventoryStep } from "./steps/reserve-inventory"
 import { finalizeShipmentStep } from "./steps/finalize-shipment"
 
 type Input = { application_id: string }
@@ -24,6 +27,7 @@ export const sendInfluencerSamplesWorkflow = createWorkflow(
     const data = validateAndPrepareStep({ application_id })
     const customer = upsertCustomerStep({ data })
     const order = createSampleOrderStep({ data, customer_id: customer.customer_id })
+    reserveSampleInventoryStep({ order_id: order.order_id })
     const shipment = finalizeShipmentStep({ data, order_id: order.order_id })
 
     return new WorkflowResponse({
