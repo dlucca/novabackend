@@ -77,6 +77,13 @@ export type InfluencerApplication = {
   rechazado_en: string | null
   enviado_en: string | null
   motivo_rechazo: string | null
+  // Legacy: early sample shipments wrote a Medusa Order id here.
+  // New shipments leave it null and use tracking_number instead.
   pedido_id: string | null
+  // New shipping fields populated by the simplified ship route
+  tracking_number: string | null
+  label_url: string | null
+  carrier: string | null
+  envia_shipment_id: string | null
   created_at: string
 }

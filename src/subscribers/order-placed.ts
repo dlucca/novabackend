@@ -1,5 +1,4 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { Modules } from "@medusajs/framework/utils"
 import createSubscriptionsFromOrderWorkflow from "../workflows/create-subscriptions-from-order"
 
 export default async function orderPlacedHandler({
@@ -12,21 +11,6 @@ export default async function orderPlacedHandler({
     logger = container.resolve("logger")
   } catch {
     logger = console
-  }
-
-  // Skip influencer sample orders — they don't have subscription line items
-  // anyway, but short-circuit here so the workflow doesn't even run.
-  try {
-    const orderService = container.resolve(Modules.ORDER)
-    const order = await orderService.retrieveOrder(orderId) as any
-    if (order?.metadata?.is_sample === true) {
-      logger.info?.(
-        `[order-placed] Order ${orderId} is an influencer sample — skipping subscription workflow`
-      )
-      return
-    }
-  } catch {
-    // Best-effort guard — if the lookup fails, fall through to the normal flow.
   }
 
   try {

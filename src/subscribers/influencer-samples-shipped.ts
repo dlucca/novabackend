@@ -1,7 +1,8 @@
 // src/subscribers/influencer-samples-shipped.ts
 //
-// Listens to influencer.samples-shipped (emitted by sendInfluencerSamplesWorkflow)
-// and sends the warm shipping confirmation email via Resend.
+// Listens to influencer.samples-shipped (emitted by the simplified
+// /admin/influencers/:id/ship route) and sends the warm shipping
+// confirmation email via Resend.
 
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import * as React from "react"
@@ -10,7 +11,6 @@ import InfluencerSamplesShipped from "../emails/InfluencerSamplesShipped"
 
 type EventData = {
   application_id: string
-  order_id: string
   customer_email: string
   customer_name: string
   parches: string[]

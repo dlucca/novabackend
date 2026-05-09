@@ -374,7 +374,10 @@ export function mapPaymentCapturedToSlackBlocks(order: any): SlackBlock[] {
 export function mapFulfillmentToSlackBlocks(
   order: any,
   labelUrl: string,
-  extras?: { trackingNumber?: string; carrier?: string }
+  // extras is unused since the sample-shipment flow no longer goes
+  // through this mapper, but the parameter is kept to preserve the
+  // existing call signature in envia-create-fulfillment.
+  _extras?: { trackingNumber?: string; carrier?: string }
 ): SlackBlock[] {
   const displayId = order.display_id ? `#${order.display_id}` : order.id
   const date = formatDate(order.created_at)
@@ -382,55 +385,6 @@ export function mapFulfillmentToSlackBlocks(
   const items = (order.items ?? []).filter(
     (item: any) => !item.metadata?.is_shipping && !item.is_shipping_cost
   )
-
-  // Sample shipments (influencer kits) get a distinct header + extra fields
-  // so the team can tell them apart from real orders at a glance.
-  const isSample = order.metadata?.is_sample === true
-
-  if (isSample) {
-    const addr = order.shipping_address
-    const recipientName = [addr?.first_name, addr?.last_name].filter(Boolean).join(" ") || "—"
-    // Comma-separated parch list — for samples we always send qty=1 each, so no "x1" noise.
-    const productsList =
-      items.map((item: any) => item.title).join(" · ") || "—"
-    const trackingLine = extras?.trackingNumber
-      ? `${extras.trackingNumber}${extras?.carrier ? ` (${extras.carrier})` : ""}`
-      : "—"
-
-    return [
-      {
-        type: "header",
-        text: { type: "plain_text", text: "🎁 Muestra para influencer enviada", emoji: true },
-      },
-      {
-        type: "section",
-        fields: [
-          { type: "mrkdwn", text: `*Orden*\n${displayId}` },
-          { type: "mrkdwn", text: `*Fecha*\n${date}` },
-        ],
-      },
-      {
-        type: "section",
-        fields: [
-          { type: "mrkdwn", text: `*Influencer*\n${recipientName}` },
-          { type: "mrkdwn", text: `*Email*\n${order.email ?? "—"}` },
-        ],
-      },
-      { type: "divider" },
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: `*Parches enviados*\n${productsList}` },
-      },
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: `*Tracking*\n${trackingLine}` },
-      },
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: `*Etiqueta*   <${labelUrl}|Ver etiqueta PDF>` },
-      },
-    ]
-  }
 
   const productsList =
     items.map((item: any) => `• ${item.title} x${item.quantity}`).join("\n") || "—"
@@ -456,6 +410,80 @@ export function mapFulfillmentToSlackBlocks(
     {
       type: "section",
       text: { type: "mrkdwn", text: `*Etiqueta*   <${labelUrl}|Ver etiqueta PDF>` },
+    },
+  ]
+}
+
+/**
+ * Sample-shipment notification for the influencer flow. Designed to look
+ * different from regular order shipments at a glance — uses 🎁 instead
+ * of 🚚, surfaces the influencer name + handle directly, and shows the
+ * tracking + label link in fields ops can copy/paste from Slack.
+ *
+ * Inputs come straight from the influencer application + Envia response;
+ * we no longer wrap a Medusa Order around sample shipments.
+ */
+export function mapInfluencerSampleShippedToSlackBlocks(input: {
+  nombre: string
+  email: string
+  instagramHandle: string | null
+  tiktokHandle: string | null
+  parches: string[]
+  trackingNumber: string
+  carrier: string
+  labelUrl: string
+  trackUrl: string
+}): SlackBlock[] {
+  const PARCH_NAMES: Record<string, string> = {
+    energy: "Energy",
+    sleep: "Sleep",
+    glow: "Glow",
+    shield: "Shield",
+    zen: "Zen",
+    woman: "Woman",
+  }
+
+  const handles = [
+    input.instagramHandle ? `IG @${input.instagramHandle}` : null,
+    input.tiktokHandle ? `TT @${input.tiktokHandle}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ") || "—"
+
+  const productsList =
+    input.parches.map((p) => PARCH_NAMES[p] ?? p).join(" · ") || "—"
+
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "🎁 Muestra para influencer enviada", emoji: true },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Influencer*\n${input.nombre}` },
+        { type: "mrkdwn", text: `*Handles*\n${handles}` },
+      ],
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Email*\n${input.email}` },
+        { type: "mrkdwn", text: `*Carrier*\n${input.carrier}` },
+      ],
+    },
+    { type: "divider" },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*Parches enviados*\n${productsList}` },
+    },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*Tracking*\n${input.trackingNumber}   <${input.trackUrl}|Ver tracking>` },
+    },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*Etiqueta*   <${input.labelUrl}|Ver etiqueta PDF>` },
     },
   ]
 }

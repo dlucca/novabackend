@@ -130,7 +130,9 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
         ...application,
         estado: "enviado",
         enviado_en: new Date().toISOString(),
-        pedido_id: json.order_id,
+        tracking_number: json.tracking_number ?? null,
+        label_url: json.label_url ?? null,
+        carrier: json.carrier ?? null,
       })
     } catch (err) {
       setShipError(err instanceof Error ? err.message : String(err))
@@ -236,9 +238,28 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                       Muestras enviadas: {formatDate(application.enviado_en)}
                     </Text>
                   )}
-                  {application.pedido_id && (
+                  {application.tracking_number && (
                     <Text size="xsmall" className="text-ui-fg-muted">
-                      Orden:{" "}
+                      Tracking: <strong>{application.tracking_number}</strong>
+                      {application.carrier ? ` · ${application.carrier}` : ""}
+                    </Text>
+                  )}
+                  {application.label_url && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      <a
+                        href={application.label_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-ui-fg-interactive underline"
+                      >
+                        Ver etiqueta PDF
+                      </a>
+                    </Text>
+                  )}
+                  {/* Legacy — early sample shipments stored a Medusa Order id here. */}
+                  {!application.tracking_number && application.pedido_id && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Orden (legacy):{" "}
                       <a
                         href={`/a/orders/${application.pedido_id}`}
                         className="text-ui-fg-interactive underline"

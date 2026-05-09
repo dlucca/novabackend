@@ -63,10 +63,21 @@ export const InfluencerApplication = model.define("influencer_application", {
   // Internal-only note from the admin. Not surfaced to the influencer.
   motivo_rechazo: model.text().nullable(),
 
-  // Set when sendInfluencerSamplesWorkflow completes — links the application
-  // to the Medusa Order that ships the samples. We use text (not a relation)
-  // because Order lives in another module.
+  // Sample shipping metadata. The original design used Medusa Orders +
+  // Fulfillment + Inventory reservations for sample shipments, but that
+  // pulled in a workflow chain whose failure modes were hard to reason
+  // about (and one Envia/FedEx retry bug ended up generating duplicate
+  // labels). The new design calls Envia directly and stores the bits we
+  // need right on the application.
+  //
+  // pedido_id is kept (nullable) for legacy rows — early Diego Test
+  // attempts wrote a Medusa Order id here. New rows leave it null and
+  // populate tracking_number / label_url / carrier instead.
   pedido_id: model.text().nullable(),
+  tracking_number: model.text().nullable(),
+  label_url: model.text().nullable(),
+  carrier: model.text().nullable(),
+  envia_shipment_id: model.text().nullable(),
 })
 
 export default InfluencerApplication

@@ -25,16 +25,6 @@ export default async function orderShippedEmailHandler({
       return
     }
 
-    // Skip influencer sample orders — they get a different, warmer email
-    // sent by the influencer-samples-shipped subscriber listening to a
-    // dedicated event.
-    if (order.metadata?.is_sample === true) {
-      logger.info(
-        `[order-shipped] Order ${orderId} is an influencer sample — skipping standard email`
-      )
-      return
-    }
-
     const { data: orders } = await query.graph({
       entity: "order",
       filters: { id: orderId },
