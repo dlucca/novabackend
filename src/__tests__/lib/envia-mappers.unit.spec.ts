@@ -60,12 +60,15 @@ describe("mapAddress", () => {
 })
 
 describe("buildPackages", () => {
-  it("returns a single box package with aggregated quantity", () => {
+  it("always returns amount=1 since we ship one envelope regardless of item count", () => {
+    // amount on Envia's package = number of physical packages, NOT items
+    // inside. Sending amount=3 produced 3 duplicate tracking numbers in
+    // production for influencer samples — see fix in buildPackages.
     const [pkg] = buildPackages([
       { quantity: 2, unit_price: 120000 },
       { quantity: 1, unit_price: 120000 },
     ])
-    expect(pkg.amount).toBe(3)
+    expect(pkg.amount).toBe(1)
     expect(pkg.type).toBe("box")
   })
 

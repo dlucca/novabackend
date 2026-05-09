@@ -151,17 +151,27 @@ const PATCH_DIMENSIONS = { length: 20, width: 15, height: 3 }
 const PATCH_CONTENT = "Vitamin patches"
 
 export function buildPackages(items: MedusaLineItem[]): EnviaPackage[] {
-  const totalQuantity = items.reduce((sum, item) => sum + (item.quantity ?? 1), 0)
   // unit_price is in centavos in Medusa; Envia expects pesos
   const totalValue = items.reduce(
     (sum, item) => sum + ((item.unit_price ?? 0) * (item.quantity ?? 1)) / 100,
     0
   )
+  // CRITICAL: `amount` is the number of physical packages in the shipment,
+  // NOT the count of items inside one package. Envia generates one tracking
+  // number per package — sending amount=N created N duplicate labels.
+  //
+  // We always ship a single envelope no matter how many parches it contains
+  // (verified: 6 parches fit inside one pouch under the 200g spec). So
+  // hardcode 1.
+  //
+  // The latent bug never surfaced for real orders because customers usually
+  // buy 1 product × quantity 1, which is amount=1 anyway. It blew up for
+  // influencer samples where one application picks 3-6 parches.
   return [
     {
       type: "box",
       content: PATCH_CONTENT,
-      amount: totalQuantity,
+      amount: 1,
       declaredValue: totalValue,
       lengthUnit: "CM",
       weightUnit: "KG",
