@@ -261,6 +261,34 @@ export default function OrderConfirmation({
         </Row>
       </Section>
 
+      {/* Usage tips */}
+      <Section
+        style={{
+          backgroundColor: "#F4F7FB",
+          borderRadius: 8,
+          padding: "16px 18px",
+          margin: "0 0 20px",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: "uppercase" as const,
+            letterSpacing: 1,
+            color: NAVY,
+            margin: "0 0 8px",
+          }}
+        >
+          Tips para usarlo bien
+        </Text>
+        <Text style={{ fontSize: 14, color: "#1F2937", margin: 0, lineHeight: "1.6" }}>
+          Úsalo entre 8 y 10 horas, cambia la zona donde lo colocas cada vez que uses
+          uno nuevo y retíralo con cuidado. Si lo humedeces con agua o lo quitas en la
+          ducha, sale más fácil y evitas jalar la piel.
+        </Text>
+      </Section>
+
       <EmailFooter />
     </EmailLayout>
   )
