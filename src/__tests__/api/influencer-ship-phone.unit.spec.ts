@@ -100,4 +100,20 @@ describe("buildShipDestination", () => {
     // street should end with "Int 5", not "Int Depto 5"
     expect(dest.street.endsWith("Int 5")).toBe(true)
   })
+
+  it("forwards direccion.instructions as the reference field", () => {
+    const dest = buildShipDestination({
+      ...APP_BASE,
+      direccion: { ...APP_BASE.direccion, instructions: "Tocar el portero del depto 5" },
+    })
+    expect(dest.reference).toBe("Tocar el portero del depto 5")
+  })
+
+  it("omits reference when instructions is empty or whitespace", () => {
+    const dest = buildShipDestination({
+      ...APP_BASE,
+      direccion: { ...APP_BASE.direccion, instructions: "   " },
+    })
+    expect(dest.reference).toBeUndefined()
+  })
 })
