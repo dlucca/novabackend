@@ -15,6 +15,7 @@ type Direccion = {
   city?: string | null
   state?: string | null
   zip?: string | null
+  instructions?: string | null
 } | null
 
 export type ShippableApplication = {
@@ -89,8 +90,10 @@ export function buildShipDestination(app: ShippableApplication): EnviaAddress {
     phone: app.telefono!,
   })
 
-  if (sanitizedInterior) {
-    return { ...base, street: `${base.street} Int ${sanitizedInterior}` }
+  const instructions = (direccion.instructions ?? "").trim()
+  return {
+    ...base,
+    ...(sanitizedInterior ? { street: `${base.street} Int ${sanitizedInterior}` } : {}),
+    ...(instructions ? { reference: instructions } : {}),
   }
-  return base
 }
