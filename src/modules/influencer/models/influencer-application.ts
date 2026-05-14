@@ -17,6 +17,13 @@ export const InfluencerApplication = model.define("influencer_application", {
   // Step 1 — identity
   nombre: model.text(),
   email: model.text(),
+  // New (2026-05): collected on the form, required for new applications,
+  // validated server-side as 10 digits (MX). Nullable at the DB level so
+  // legacy rows (pre-rollout) don't break. The ship route guards against
+  // null and refuses to generate a label without it — Envia's MX carriers
+  // print the shipper's phone in the recipient field when destination
+  // phone is empty.
+  telefono: model.text().nullable(),
   pais: model.text(),
   // Legacy single-network fields — kept for backwards compatibility with old
   // applications. New applications populate instagram_handle / tiktok_handle.
