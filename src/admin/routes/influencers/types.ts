@@ -46,6 +46,7 @@ export type InfluencerApplication = {
   id: string
   nombre: string
   email: string
+  telefono: string | null
   pais: string
   // Legacy fields (nullable for new applications)
   red_principal: string | null

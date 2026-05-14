@@ -275,6 +275,7 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                 <Heading level="h3">Identidad</Heading>
                 <Field label="Nombre" value={application.nombre} />
                 <Field label="Email" value={application.email} />
+                <Field label="Teléfono" value={application.telefono} />
                 <Field label="País" value={application.pais} />
                 <Field
                   label="Instagram"

@@ -3,33 +3,19 @@ import { INFLUENCER_MODULE } from "../../../modules/influencer"
 import InfluencerModuleService from "../../../modules/influencer/service"
 import { sendSlackNotification } from "../../../lib/slack-client"
 import { mapInfluencerApplicationToSlackBlocks } from "../../../lib/slack-mappers"
+import { validateInfluencerPayload } from "../../../lib/influencer-validation"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const body = req.body as Record<string, unknown>
 
-  // Required fields for the new (current) form. Fields like red_principal,
-  // genero_audiencia, edad_audiencia and modalidad are no longer collected
-  // by the storefront — kept nullable in the model for legacy data.
-  const required = [
-    "nombre", "email", "pais",
-    "rango_seguidores", "nicho", "tipo_contenido",
-    "tiene_contenido_bienestar", "parches",
-  ]
-
-  for (const field of required) {
-    if (!body[field]) {
-      return res.status(400).json({ error: `Campo requerido: ${field}` })
-    }
+  const validation = validateInfluencerPayload(body)
+  if (!validation.ok) {
+    return res.status(400).json({ error: validation.error })
   }
 
-  // At least one of Instagram / TikTok handle must be present.
+  // Validator guarantees both required fields above and at least one handle.
   const instagramHandle = (body.instagram_handle as string)?.trim() || null
   const tiktokHandle = (body.tiktok_handle as string)?.trim() || null
-  if (!instagramHandle && !tiktokHandle) {
-    return res.status(400).json({
-      error: "Indicá al menos un handle: Instagram o TikTok",
-    })
-  }
 
   // Derive legacy red_principal / handle from whichever handle is present so
   // existing admin views and Slack mappers keep working without changes.
@@ -42,6 +28,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     {
       nombre: body.nombre as string,
       email: body.email as string,
+      telefono: body.telefono as string,
       pais: body.pais as string,
       red_principal: redPrincipal,
       handle: primaryHandle,
