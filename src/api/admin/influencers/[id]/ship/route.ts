@@ -29,7 +29,12 @@ import { Modules } from "@medusajs/framework/utils"
 import { INFLUENCER_MODULE } from "../../../../../modules/influencer"
 import InfluencerModuleService from "../../../../../modules/influencer/service"
 import { EnviaClient } from "../../../../../lib/envia-client"
-import { mapAddress, buildShipmentRequest } from "../../../../../lib/envia-mappers"
+import { buildShipmentRequest } from "../../../../../lib/envia-mappers"
+import {
+  guardShippableApplication,
+  buildShipDestination,
+  type ShippableApplication,
+} from "./lib"
 import { WAREHOUSE } from "../../../../../config/warehouse"
 import {
   acquireInfluencerShipLock,
@@ -77,53 +82,20 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     if (!application) {
       return res.status(404).json({ error: "Postulación no encontrada" })
     }
-    if (application.estado !== "aprobado") {
-      return res.status(422).json({
-        error: `Solo se pueden enviar muestras a postulaciones aprobadas. Estado actual: ${application.estado}`,
-      })
+
+    const guard = guardShippableApplication(application as ShippableApplication)
+    if (!guard.ok) {
+      return res.status(guard.status).json({ error: guard.error })
     }
-    if (application.tracking_number) {
-      return res.status(422).json({
-        error: `Esta postulación ya tiene una etiqueta generada (tracking ${application.tracking_number}).`,
-      })
-    }
-    const parches: string[] = application.parches ?? []
-    if (!parches.length) {
-      return res.status(422).json({ error: "La postulación no tiene parches seleccionados" })
-    }
-    if (!application.direccion) {
-      return res.status(422).json({ error: "La postulación no tiene dirección de envío" })
-    }
+
     if (!process.env.ENVIA_API_TOKEN || !process.env.ENVIA_API_URL) {
       return res.status(500).json({ error: "ENVIA no está configurado en este entorno" })
     }
 
     // ── 3. Compose Envia destination from the application's address ────────
-    const direccion = application.direccion as Record<string, string | null>
+    const parches: string[] = application.parches
     const fullName = (application.nombre as string).trim()
-    const sanitizedInterior = (direccion.interior ?? "")
-      .trim()
-      .replace(/^(int(erior)?\.?|depto\.?|departamento)\s*/i, "")
-      .trim()
-    const street = (direccion.street ?? "").trim()
-
-    // Reuse the existing Envia mappers — buildPackages knows our spec
-    // (single 200g pouch). We pass a fake Medusa-shaped address object
-    // because mapAddress expects that shape.
-    const destination = mapAddress({
-      first_name: fullName,
-      last_name: "",
-      address_1: street + (sanitizedInterior ? ` Int ${sanitizedInterior}` : ""),
-      address_2: direccion.colonia ?? null,
-      city: direccion.city ?? "",
-      province: direccion.state ?? "",
-      country_code: "mx",
-      postal_code: direccion.zip ?? "",
-      // Phone isn't collected on the influencer form. Envia's MX carriers
-      // accept blank/placeholder phones for the destination — the pickup
-      // contact is the warehouse, not the recipient.
-      phone: "",
-    })
+    const destination = buildShipDestination(application as ShippableApplication)
 
     log(`Destination: ${JSON.stringify(destination)}`)
 
