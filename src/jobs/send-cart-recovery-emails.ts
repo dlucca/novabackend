@@ -65,6 +65,9 @@ export default async function sendCartRecoveryEmailsJob(
     if ((c.items_count ?? 0) === 0) return false
     if (c.completed_at) return false
     if (c.metadata?.recovery_email_sent === true) return false
+    // Skip carts created by the pre-checkout smoke. They have a fake email
+    // and would just produce Resend bounces if recovery fires on them.
+    if (c.metadata?.smoke_test === true) return false
     return true
   })
 
