@@ -1,5 +1,5 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { enviaCreateFulfillmentWorkflow } from "../workflows/envia-create-fulfillment"
 
 export default async function enviaFulfillmentHandler({
@@ -14,6 +14,29 @@ export default async function enviaFulfillmentHandler({
     return
   }
 
+  // Smoke test guard: orders flagged with metadata.smoke_test = true are
+  // synthetic transactions used by the weekly L4 smoke. They MUST NOT
+  // generate a real Envia label (would cost ~$80-130 MXN per run).
+  // See docs/superpowers/specs/2026-05-17-smoke-l4-full-checkout-design.md
+  try {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: orders } = await query.graph({
+      entity: "order",
+      filters: { id: orderId },
+      fields: ["id", "metadata"],
+    })
+    const order = orders?.[0]
+    if ((order?.metadata as any)?.smoke_test === true) {
+      logger.info(`[envia-fulfillment] Skipping smoke test order ${orderId} (metadata.smoke_test=true)`)
+      return
+    }
+  } catch (metaErr) {
+    // If metadata check fails, fall through to the existing flow rather than
+    // blocking real fulfillments. Worst case: a smoke order generates a label
+    // and we cancel it manually in Envia.
+    logger.warn(`[envia-fulfillment] Could not check metadata for order ${orderId}: ${metaErr instanceof Error ? metaErr.message : String(metaErr)}`)
+  }
+
   // Idempotency: skip if a fulfillment was already created for this order
   // (guards against duplicate order.payment_captured events)
   try {
@@ -25,15 +48,12 @@ export default async function enviaFulfillmentHandler({
       return
     }
   } catch (checkErr) {
-    // If the check fails, proceed anyway — worst case is a duplicate label that ops can void
     logger.warn(`[envia-fulfillment] Could not check existing fulfillments for order ${orderId}: ${checkErr instanceof Error ? checkErr.message : String(checkErr)}`)
   }
 
   try {
     await enviaCreateFulfillmentWorkflow(container).run({ input: { orderId } })
   } catch (err) {
-    // RNF-01: never throw — the order stays as `paid`; an operator can create
-    // the fulfillment manually. The workflow logs details of each failed step.
     let errMsg: string
     if (err instanceof Error) {
       errMsg = err.message
