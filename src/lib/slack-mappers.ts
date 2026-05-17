@@ -340,10 +340,13 @@ export function mapPaymentCapturedToSlackBlocks(order: any): SlackBlock[] {
       })
       .join("\n") || "—"
 
+  const isSmoke = order?.metadata?.smoke_test === true
+  const headerText = isSmoke ? "🧪 [SMOKE] Cobro confirmado" : "💳 Cobro confirmado"
+
   return [
     {
       type: "header",
-      text: { type: "plain_text", text: "💳 Cobro confirmado", emoji: true },
+      text: { type: "plain_text", text: headerText, emoji: true },
     },
     {
       type: "section",

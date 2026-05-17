@@ -18,6 +18,7 @@ const ORDER_FIELDS = [
   "items.title",
   "items.quantity",
   "items.metadata",
+  "metadata",
 ]
 
 export default async function orderPaymentCapturedSlackAlert({
