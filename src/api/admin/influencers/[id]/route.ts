@@ -21,14 +21,28 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 const VALID_TARGETS = ["pendiente", "aprobado", "rechazado"] as const
 type ValidTarget = (typeof VALID_TARGETS)[number]
 
+type AddressPatch = {
+  street?: string | null
+  interior?: string | null
+  colonia?: string | null
+  city?: string | null
+  state?: string | null
+  zip?: string | null
+  instructions?: string | null
+}
+
 export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params
-  const { estado, motivo_rechazo } = req.body as {
-    estado: string
+  const { estado, motivo_rechazo, direccion } = req.body as {
+    estado?: string
     motivo_rechazo?: string
+    direccion?: AddressPatch
   }
 
-  if (!estado || !VALID_TARGETS.includes(estado as ValidTarget)) {
+  // Both fields are optional independently. A request with only `direccion`
+  // edits the address without changing state — useful when an influencer
+  // mistyped their address and Envia couldn't generate a label.
+  if (estado !== undefined && !VALID_TARGETS.includes(estado as ValidTarget)) {
     return res.status(400).json({
       error: `estado debe ser uno de: ${VALID_TARGETS.join(", ")}`,
     })
@@ -43,27 +57,54 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     return res.status(404).json({ error: "Postulación no encontrada" })
   }
 
-  const allowed = ALLOWED_TRANSITIONS[current.estado] ?? []
-  if (current.estado !== estado && !allowed.includes(estado)) {
+  if (estado !== undefined) {
+    const allowed = ALLOWED_TRANSITIONS[current.estado] ?? []
+    if (current.estado !== estado && !allowed.includes(estado)) {
+      return res.status(409).json({
+        error: `Transición inválida: ${current.estado} → ${estado}`,
+        hint: current.estado === "enviado"
+          ? "La postulación ya tiene muestras enviadas y no puede modificarse."
+          : `Transiciones permitidas desde ${current.estado}: ${allowed.join(", ") || "ninguna"}`,
+      })
+    }
+  }
+
+  // Address edits are blocked once the shipment is out — at that point the
+  // label is real and the package is in transit, so changing the saved
+  // address would just create a confusing audit trail.
+  if (direccion !== undefined && current.estado === "enviado") {
     return res.status(409).json({
-      error: `Transición inválida: ${current.estado} → ${estado}`,
-      hint: current.estado === "enviado"
-        ? "La postulación ya tiene muestras enviadas y no puede modificarse."
-        : `Transiciones permitidas desde ${current.estado}: ${allowed.join(", ") || "ninguna"}`,
+      error: "No se puede editar la dirección de una postulación ya enviada.",
     })
   }
 
   // Build the patch. We set timestamps the FIRST time we hit a state, but
   // leave them untouched on re-entry so the audit trail keeps the original
   // moment (e.g. if you revert→re-approve, aprobado_en stays as the first time).
-  const patch: Record<string, unknown> = { id, estado }
+  const patch: Record<string, unknown> = { id }
 
-  if (estado === "aprobado" && !current.aprobado_en) {
-    patch.aprobado_en = new Date()
+  if (estado !== undefined) {
+    patch.estado = estado
+    if (estado === "aprobado" && !current.aprobado_en) {
+      patch.aprobado_en = new Date()
+    }
+    if (estado === "rechazado") {
+      if (!current.rechazado_en) patch.rechazado_en = new Date()
+      if (motivo_rechazo !== undefined) patch.motivo_rechazo = motivo_rechazo || null
+    }
   }
-  if (estado === "rechazado") {
-    if (!current.rechazado_en) patch.rechazado_en = new Date()
-    if (motivo_rechazo !== undefined) patch.motivo_rechazo = motivo_rechazo || null
+
+  if (direccion !== undefined) {
+    const prev = (current.direccion as AddressPatch | null) ?? {}
+    patch.direccion = {
+      street: direccion.street ?? prev.street ?? null,
+      interior: direccion.interior ?? prev.interior ?? null,
+      colonia: direccion.colonia ?? prev.colonia ?? null,
+      city: direccion.city ?? prev.city ?? null,
+      state: direccion.state ?? prev.state ?? null,
+      zip: direccion.zip ?? prev.zip ?? null,
+      instructions: direccion.instructions ?? prev.instructions ?? null,
+    }
   }
 
   const [updated] = await influencerService.updateInfluencerApplications([

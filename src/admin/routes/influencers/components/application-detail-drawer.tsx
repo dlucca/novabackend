@@ -1,6 +1,6 @@
 import { useRef, useState } from "react"
-import { Drawer, Heading, Text, Button, Badge, Textarea } from "@medusajs/ui"
-import type { InfluencerApplication } from "../types"
+import { Drawer, Heading, Text, Button, Badge, Textarea, Input, Label } from "@medusajs/ui"
+import type { InfluencerAddress, InfluencerApplication } from "../types"
 
 function getAdminHeaders(): Record<string, string> {
   const token = localStorage.getItem("medusa_auth_token")
@@ -74,6 +74,10 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
   const [shipResult, setShipResult] = useState<ShipResult | null>(null)
   const [shipError, setShipError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [editingAddress, setEditingAddress] = useState(false)
+  const [addressDraft, setAddressDraft] = useState<InfluencerAddress>({})
+  const [addressBusy, setAddressBusy] = useState(false)
+  const [addressError, setAddressError] = useState<string | null>(null)
 
   const PARCH_NAMES: Record<string, string> = {
     energy: "Energy",
@@ -153,7 +157,39 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
     setShipError(null)
     setRejectingOpen(false)
     setRejectReason("")
+    setEditingAddress(false)
+    setAddressError(null)
     onClose()
+  }
+
+  const startEditAddress = () => {
+    setAddressDraft({ ...(application?.direccion ?? {}) })
+    setAddressError(null)
+    setEditingAddress(true)
+  }
+
+  const saveAddress = async () => {
+    if (!application) return
+    setAddressBusy(true)
+    setAddressError(null)
+    try {
+      const res = await fetch(`/admin/influencers/${application.id}`, {
+        method: "PATCH",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ direccion: addressDraft }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setAddressError(json.error ?? "No se pudo guardar la dirección.")
+        return
+      }
+      onStatusChange(application.id, json.influencer_application)
+      setEditingAddress(false)
+    } catch (err) {
+      setAddressError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAddressBusy(false)
+    }
   }
 
   const patchEstado = async (
@@ -311,34 +347,152 @@ export function ApplicationDetailDrawer({ application, onClose, onStatusChange }
                 <Field label="Mensaje" value={application.mensaje_libre} />
               </div>
 
-              {application.direccion && (
+              {(application.direccion || application.estado !== "enviado") && (
                 <div className="flex flex-col gap-3">
-                  <Heading level="h3">Dirección de envío</Heading>
-                  <Field
-                    label="Calle y número"
-                    value={
-                      application.direccion.street &&
-                      `${application.direccion.street}${
-                        application.direccion.interior
-                          ? ` Int ${application.direccion.interior}`
-                          : ""
-                      }`
-                    }
-                  />
-                  <Field label="Colonia" value={application.direccion.colonia} />
-                  <Field
-                    label="Ciudad / Estado"
-                    value={
-                      application.direccion.city && application.direccion.state
-                        ? `${application.direccion.city}, ${application.direccion.state}`
-                        : application.direccion.city ?? application.direccion.state
-                    }
-                  />
-                  <Field label="Código postal" value={application.direccion.zip} />
-                  <Field
-                    label="Instrucciones"
-                    value={application.direccion.instructions}
-                  />
+                  <div className="flex items-center justify-between">
+                    <Heading level="h3">Dirección de envío</Heading>
+                    {application.estado !== "enviado" && !editingAddress && (
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        onClick={startEditAddress}
+                      >
+                        Editar
+                      </Button>
+                    )}
+                  </div>
+
+                  {!editingAddress && application.direccion && (
+                    <>
+                      <Field
+                        label="Calle y número"
+                        value={
+                          application.direccion.street &&
+                          `${application.direccion.street}${
+                            application.direccion.interior
+                              ? ` Int ${application.direccion.interior}`
+                              : ""
+                          }`
+                        }
+                      />
+                      <Field label="Colonia" value={application.direccion.colonia} />
+                      <Field
+                        label="Ciudad / Estado"
+                        value={
+                          application.direccion.city && application.direccion.state
+                            ? `${application.direccion.city}, ${application.direccion.state}`
+                            : application.direccion.city ?? application.direccion.state
+                        }
+                      />
+                      <Field label="Código postal" value={application.direccion.zip} />
+                      <Field
+                        label="Instrucciones"
+                        value={application.direccion.instructions}
+                      />
+                    </>
+                  )}
+
+                  {editingAddress && (
+                    <div className="flex flex-col gap-3 p-3 rounded-md border border-ui-border-base bg-ui-bg-subtle">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2 flex flex-col gap-1">
+                          <Label size="xsmall">Calle y número</Label>
+                          <Input
+                            value={addressDraft.street ?? ""}
+                            onChange={(e) =>
+                              setAddressDraft((d) => ({ ...d, street: e.target.value }))
+                            }
+                            placeholder="Calle Manlio Fabio Altamirano #4"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label size="xsmall">Interior (opcional)</Label>
+                          <Input
+                            value={addressDraft.interior ?? ""}
+                            onChange={(e) =>
+                              setAddressDraft((d) => ({ ...d, interior: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label size="xsmall">Colonia</Label>
+                          <Input
+                            value={addressDraft.colonia ?? ""}
+                            onChange={(e) =>
+                              setAddressDraft((d) => ({ ...d, colonia: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label size="xsmall">Ciudad</Label>
+                          <Input
+                            value={addressDraft.city ?? ""}
+                            onChange={(e) =>
+                              setAddressDraft((d) => ({ ...d, city: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label size="xsmall">Estado</Label>
+                          <Input
+                            value={addressDraft.state ?? ""}
+                            onChange={(e) =>
+                              setAddressDraft((d) => ({ ...d, state: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label size="xsmall">Código postal</Label>
+                          <Input
+                            value={addressDraft.zip ?? ""}
+                            onChange={(e) =>
+                              setAddressDraft((d) => ({ ...d, zip: e.target.value }))
+                            }
+                            inputMode="numeric"
+                            maxLength={5}
+                          />
+                        </div>
+                        <div className="col-span-2 flex flex-col gap-1">
+                          <Label size="xsmall">Instrucciones</Label>
+                          <Textarea
+                            rows={2}
+                            value={addressDraft.instructions ?? ""}
+                            onChange={(e) =>
+                              setAddressDraft((d) => ({
+                                ...d,
+                                instructions: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                      {addressError && (
+                        <Text size="xsmall" className="text-ui-fg-error">
+                          {addressError}
+                        </Text>
+                      )}
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="transparent"
+                          size="small"
+                          onClick={() => {
+                            setEditingAddress(false)
+                            setAddressError(null)
+                          }}
+                          disabled={addressBusy}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={saveAddress}
+                          isLoading={addressBusy}
+                        >
+                          Guardar dirección
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
