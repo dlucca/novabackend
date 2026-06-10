@@ -55,41 +55,46 @@ export default async function uploadProductImages({ container }: ExecArgs) {
       continue
     }
 
-    const { result: uploaded } = await uploadFilesWorkflow(container).run({
-      input: {
-        files: files.map((f) => ({
-          filename: `products/${handle}/${f}`,
-          mimeType: MIME_TYPES[path.extname(f).toLowerCase()],
-          content: fs.readFileSync(path.join(dir, f)).toString("binary"),
-          access: "public" as const,
-        })),
-      },
-    })
+    try {
+      const { result: uploaded } = await uploadFilesWorkflow(container).run({
+        input: {
+          files: files.map((f) => ({
+            filename: `products/${handle}/${f}`,
+            mimeType: MIME_TYPES[path.extname(f).toLowerCase()],
+            content: fs.readFileSync(path.join(dir, f)).toString("base64"),
+            access: "public" as const,
+          })),
+        },
+      })
 
-    const {
-      data: [product],
-    } = await query.graph({
-      entity: "product",
-      fields: ["id"],
-      filters: { handle },
-    })
+      const {
+        data: [product],
+      } = await query.graph({
+        entity: "product",
+        fields: ["id"],
+        filters: { handle },
+      })
 
-    if (!product) {
-      logger.warn(`Producto con handle "${handle}" no existe en Medusa — salteado`)
+      if (!product) {
+        logger.warn(`Producto con handle "${handle}" no existe en Medusa — salteado`)
+        continue
+      }
+
+      await updateProductsWorkflow(container).run({
+        input: {
+          selector: { id: product.id },
+          update: {
+            images: uploaded.map((u) => ({ url: u.url })),
+            thumbnail: uploaded[0].url,
+          },
+        },
+      })
+
+      logger.info(`"${handle}": ${uploaded.length} imágenes subidas → thumbnail ${uploaded[0].url}`)
+    } catch (err) {
+      logger.error(`Falló la carga para "${handle}": ${err instanceof Error ? err.message : err}`)
       continue
     }
-
-    await updateProductsWorkflow(container).run({
-      input: {
-        selector: { id: product.id },
-        update: {
-          images: uploaded.map((u) => ({ url: u.url })),
-          thumbnail: uploaded[0].url,
-        },
-      },
-    })
-
-    logger.info(`"${handle}": ${uploaded.length} imágenes subidas → thumbnail ${uploaded[0].url}`)
   }
 
   logger.info("Carga de imágenes completada.")
