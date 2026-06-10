@@ -24,7 +24,13 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/influencer",
     },
-    ...(process.env.S3_ACCESS_KEY_ID
+    // R2 storage requires the full set of S3_* vars — a partial config would
+    // register the provider and then fail at runtime with opaque SDK errors.
+    ...(process.env.S3_ACCESS_KEY_ID &&
+    process.env.S3_SECRET_ACCESS_KEY &&
+    process.env.S3_BUCKET &&
+    process.env.S3_ENDPOINT &&
+    process.env.S3_FILE_URL
       ? [
           {
             resolve: "@medusajs/medusa/file",
@@ -41,6 +47,7 @@ module.exports = defineConfig({
                     bucket: process.env.S3_BUCKET,
                     endpoint: process.env.S3_ENDPOINT,
                     additional_client_config: {
+                      // Required by R2 and other non-AWS S3-compatible endpoints
                       forcePathStyle: true,
                     },
                   },
