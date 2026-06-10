@@ -27,3 +27,6 @@ build
 ~$*
 .claude.worktrees/
 .worktrees/
+
+# Imágenes de producto locales (el storage canónico es R2)
+product-images/
