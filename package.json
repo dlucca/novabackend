@@ -25,6 +25,7 @@
     "@clerk/backend": "^3.2.4",
     "@medusajs/admin-sdk": "2.13.1",
     "@medusajs/cli": "2.13.1",
+    "@medusajs/file-s3": "^2.13.1",
     "@medusajs/framework": "2.13.1",
     "@medusajs/medusa": "2.13.1",
     "@react-email/components": "^1.0.11"
