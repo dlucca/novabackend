@@ -18,6 +18,44 @@ module.exports = defineConfig({
     },
   },
   modules: [
+    // Infra Redis: sin esto Medusa cae a Event Bus local, Locking y Workflow
+    // Engine in-memory (no aptos para producción). Condicionado a REDIS_URL para
+    // que dev local sin Redis siga usando los defaults in-memory.
+    ...(process.env.REDIS_URL
+      ? [
+          {
+            resolve: "@medusajs/medusa/cache-redis",
+            options: { redisUrl: process.env.REDIS_URL },
+          },
+          {
+            resolve: "@medusajs/medusa/event-bus-redis",
+            options: {
+              redisUrl: process.env.REDIS_URL,
+              jobOptions: {
+                removeOnComplete: { age: 3600, count: 1000 },
+                removeOnFail: { age: 3600, count: 1000 },
+              },
+            },
+          },
+          {
+            resolve: "@medusajs/medusa/workflow-engine-redis",
+            options: { redis: { redisUrl: process.env.REDIS_URL } },
+          },
+          {
+            resolve: "@medusajs/medusa/locking",
+            options: {
+              providers: [
+                {
+                  resolve: "@medusajs/medusa/locking-redis",
+                  id: "locking-redis",
+                  is_default: true,
+                  options: { redisUrl: process.env.REDIS_URL },
+                },
+              ],
+            },
+          },
+        ]
+      : []),
     {
       resolve: "./src/modules/subscription",
     },
