@@ -62,6 +62,9 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/influencer",
     },
+    {
+      resolve: "./src/modules/review",
+    },
     // R2 storage requires the full set of S3_* vars — a partial config would
     // register the provider and then fail at runtime with opaque SDK errors.
     ...(process.env.S3_ACCESS_KEY_ID &&
