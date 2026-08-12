@@ -5,6 +5,7 @@ import OrderShipped from "../../emails/OrderShipped"
 import OrderDelivered from "../../emails/OrderDelivered"
 import OrderDeliveryFailed from "../../emails/OrderDeliveryFailed"
 import SubscriptionUpcomingCharge from "../../emails/SubscriptionUpcomingCharge"
+import AdminInvite from "../../emails/AdminInvite"
 
 const CONFIRMATION_PROPS = {
   name: "Test",
@@ -107,5 +108,18 @@ describe("Email templates render without errors", () => {
     expect(html).toContain("mensual")
     expect(html).toContain("novapatch.care/cuenta/suscripciones")
     expect(html).toContain("bienestar que no interrumpe tu d")
+  })
+
+  it("AdminInvite renders invite URL and email", async () => {
+    const inviteUrl = "https://admin.novapatch.care/app/invite?token=abc123"
+    const html = await render(
+      React.createElement(AdminInvite, {
+        inviteUrl,
+        email: "nuevo@novapatch.care",
+      })
+    )
+    expect(html).toContain("Aceptar invitaci")
+    expect(html).toContain(inviteUrl)
+    expect(html).toContain("nuevo@novapatch.care")
   })
 })
