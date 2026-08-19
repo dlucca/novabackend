@@ -1,14 +1,14 @@
 // src/emails/OrderConfirmation.tsx
-import { Heading, Text, Row, Column, Section, Hr } from "@react-email/components"
+import { Heading, Text, Row, Column, Section, Hr, Link } from "@react-email/components"
 import * as React from "react"
 import { EmailLayout } from "./components/EmailLayout"
 import { EmailHeader } from "./components/EmailHeader"
 import { EmailFooter } from "./components/EmailFooter"
 import { OrderStatusTracker } from "./components/OrderStatusTracker"
 
-const NAVY = "#003D70"
-const CORAL = "#E8503A"
-const GRAY = "#6B7280"
+const DARK = "#0F0F0F"
+const GRAY_TEXT = "#3A3A37"
+const MUTED = "#A8A29A"
 
 type OrderItem = {
   title: string
@@ -67,38 +67,46 @@ export default function OrderConfirmation({
     <EmailLayout preview={`Tu pedido #${displayId} fue confirmado — Novapatch`}>
       <EmailHeader />
 
-      {/* Order number */}
-      <Row>
-        <Column>
+      {/* Greeting and Order ID Header */}
+      <Row style={{ marginBottom: 20 }}>
+        <Column style={{ verticalAlign: "top" as const }}>
           <Heading
             style={{
-              color: NAVY,
+              color: DARK,
               fontSize: 22,
               margin: "0 0 4px",
               fontWeight: 700,
+              letterSpacing: "-0.025em",
             }}
           >
             ¡Hola, {name}!
           </Heading>
-          <Text style={{ color: GRAY, fontSize: 15, margin: "0 0 2px" }}>
-            Confirmamos tu pedido
+          <Text style={{ color: GRAY_TEXT, fontSize: 14, margin: 0 }}>
+            Confirmamos tu pedido.
           </Text>
         </Column>
         <Column style={{ textAlign: "right" as const, verticalAlign: "top" as const }}>
           <Text
             style={{
-              color: GRAY,
-              fontSize: 12,
-              margin: 0,
-              fontWeight: 600,
+              color: MUTED,
+              fontSize: 10,
+              margin: "0 0 2px",
+              fontWeight: 700,
               textTransform: "uppercase" as const,
-              letterSpacing: 1,
+              letterSpacing: "0.12em",
+              fontFamily: "'JetBrains Mono', monospace, sans-serif",
             }}
           >
-            Pedido
+            PEDIDO
           </Text>
           <Text
-            style={{ color: NAVY, fontSize: 15, margin: "2px 0 0", fontWeight: 700 }}
+            style={{
+              color: DARK,
+              fontSize: 18,
+              margin: 0,
+              fontWeight: 700,
+              fontFamily: "'JetBrains Mono', monospace, sans-serif",
+            }}
           >
             #{displayId}
           </Text>
@@ -108,56 +116,56 @@ export default function OrderConfirmation({
       {/* Status tracker */}
       <OrderStatusTracker currentStep={0} />
 
-      <Hr style={{ borderColor: "#E5E7EB", margin: "4px 0 20px" }} />
-
       {/* Shipping info */}
-      <Row style={{ marginBottom: 20 }}>
-        <Column style={{ verticalAlign: "top" as const, paddingRight: 16 }}>
+      <Row style={{ marginBottom: 24, marginTop: 24 }}>
+        <Column style={{ verticalAlign: "top" as const, paddingRight: 14, width: "50%" }}>
           <Text
             style={{
-              fontSize: 12,
+              fontSize: 10,
               fontWeight: 700,
               textTransform: "uppercase" as const,
-              letterSpacing: 1,
-              color: GRAY,
+              letterSpacing: "0.12em",
+              color: MUTED,
               margin: "0 0 6px",
+              fontFamily: "'JetBrains Mono', monospace, sans-serif",
             }}
           >
-            Método de envío
+            MÉTODO DE ENVÍO
           </Text>
-          <Text style={{ fontSize: 14, color: NAVY, margin: "0 0 4px", fontWeight: 600 }}>
-            Envío estándar
+          <Text style={{ fontSize: 13, color: DARK, margin: "0 0 2px", fontWeight: 700 }}>
+            Envío Estándar Express
           </Text>
-          <Text style={{ fontSize: 13, color: GRAY, margin: 0, lineHeight: "1.5" }}>
+          <Text style={{ fontSize: 13, color: GRAY_TEXT, margin: 0 }}>
             3–5 días hábiles
           </Text>
         </Column>
         {addr && (
-          <Column style={{ verticalAlign: "top" as const }}>
+          <Column style={{ verticalAlign: "top" as const, paddingLeft: 14, width: "50%" }}>
             <Text
               style={{
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: 700,
                 textTransform: "uppercase" as const,
-                letterSpacing: 1,
-                color: GRAY,
+                letterSpacing: "0.12em",
+                color: MUTED,
                 margin: "0 0 6px",
+                fontFamily: "'JetBrains Mono', monospace, sans-serif",
               }}
             >
-              Dirección de envío
+              DIRECCIÓN DE ENVÍO
             </Text>
             {recipientName && (
-              <Text style={{ fontSize: 14, color: NAVY, margin: "0 0 4px", fontWeight: 600 }}>
+              <Text style={{ fontSize: 13, color: DARK, margin: "0 0 2px", fontWeight: 700 }}>
                 {recipientName}
               </Text>
             )}
             {addressLine1 && (
-              <Text style={{ fontSize: 13, color: GRAY, margin: "0 0 2px" }}>
+              <Text style={{ fontSize: 13, color: GRAY_TEXT, margin: "0 0 2px" }}>
                 {addressLine1}
               </Text>
             )}
             {addressLine2 && (
-              <Text style={{ fontSize: 13, color: GRAY, margin: 0 }}>
+              <Text style={{ fontSize: 13, color: GRAY_TEXT, margin: 0 }}>
                 {addressLine2}
               </Text>
             )}
@@ -166,26 +174,37 @@ export default function OrderConfirmation({
       </Row>
 
       {estimatedDelivery && (
-        <Text style={{ fontSize: 14, color: "#425066", margin: "12px 0" }}>
-          Envío estimado: <strong style={{ color: "#0D1B35" }}>{estimatedDelivery}</strong>.{" "}
-          Te enviaremos la guía por email en las próximas 24 horas.
-        </Text>
+        <Section
+          style={{
+            backgroundColor: "#FAF8F5",
+            border: "1px solid #E6E1D8",
+            borderRadius: "12px",
+            padding: "12px 16px",
+            marginBottom: "24px",
+          }}
+        >
+          <Text style={{ fontSize: 13, color: GRAY_TEXT, margin: 0, lineHeight: "1.5" }}>
+            Envío estimado: <strong style={{ color: DARK }}>{estimatedDelivery}</strong>.{" "}
+            Te enviaremos la guía por email en las próximas 24 horas.
+          </Text>
+        </Section>
       )}
 
-      <Hr style={{ borderColor: "#E5E7EB", margin: "0 0 20px" }} />
+      <Hr style={{ borderColor: "#E6E1D8", margin: "0 0 20px" }} />
 
       {/* Items table */}
       <Text
         style={{
-          fontSize: 12,
+          fontSize: 10,
           fontWeight: 700,
           textTransform: "uppercase" as const,
-          letterSpacing: 1,
-          color: GRAY,
+          letterSpacing: "0.12em",
+          color: MUTED,
           margin: "0 0 12px",
+          fontFamily: "'JetBrains Mono', monospace, sans-serif",
         }}
       >
-        Detalle
+        DETALLE DEL PEDIDO
       </Text>
 
       {items.map((item, i) => {
@@ -194,19 +213,19 @@ export default function OrderConfirmation({
           <Section
             key={i}
             style={{
-              borderTop: i === 0 ? `2px solid ${NAVY}` : "1px solid #E5E7EB",
-              padding: "10px 0",
+              borderBottom: "1px solid #E6E1D8",
+              padding: "12px 0",
             }}
           >
             <Row>
-              <Column style={{ fontSize: 14, color: "#1F2937" }}>
+              <Column style={{ fontSize: 14, fontWeight: 600, color: DARK }}>
                 {item.title}
                 {isSub && (
                   <Text
                     style={{
                       display: "inline",
                       fontSize: 11,
-                      color: CORAL,
+                      color: DARK,
                       fontWeight: 600,
                       marginLeft: 6,
                     }}
@@ -219,8 +238,9 @@ export default function OrderConfirmation({
                 style={{
                   textAlign: "center" as const,
                   width: 48,
-                  fontSize: 14,
-                  color: GRAY,
+                  fontSize: 13,
+                  color: MUTED,
+                  fontFamily: "'JetBrains Mono', monospace, sans-serif",
                 }}
               >
                 ×{item.quantity}
@@ -228,10 +248,11 @@ export default function OrderConfirmation({
               <Column
                 style={{
                   textAlign: "right" as const,
-                  width: 90,
+                  width: 100,
                   fontSize: 14,
-                  fontWeight: 600,
-                  color: "#1F2937",
+                  fontWeight: 700,
+                  color: DARK,
+                  fontFamily: "'JetBrains Mono', monospace, sans-serif",
                 }}
               >
                 {fmt(item.unit_price * item.quantity, currencyCode)}
@@ -242,19 +263,23 @@ export default function OrderConfirmation({
       })}
 
       {/* Total */}
-      <Section
-        style={{ borderTop: `2px solid ${NAVY}`, padding: "12px 0 20px" }}
-      >
+      <Section style={{ padding: "16px 0 24px" }}>
         <Row>
           <Column style={{ textAlign: "right" as const, paddingRight: 8 }}>
-            <Text style={{ fontSize: 15, fontWeight: 700, color: NAVY, margin: 0 }}>
+            <Text style={{ fontSize: 15, fontWeight: 700, color: DARK, margin: 0 }}>
               Total
             </Text>
           </Column>
-          <Column
-            style={{ textAlign: "right" as const, width: 90 }}
-          >
-            <Text style={{ fontSize: 15, fontWeight: 700, color: NAVY, margin: 0 }}>
+          <Column style={{ textAlign: "right" as const, width: 110 }}>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: 800,
+                color: DARK,
+                margin: 0,
+                fontFamily: "'JetBrains Mono', monospace, sans-serif",
+              }}
+            >
               {fmt(total, currencyCode)}
             </Text>
           </Column>
@@ -264,29 +289,52 @@ export default function OrderConfirmation({
       {/* Usage tips */}
       <Section
         style={{
-          backgroundColor: "#F4F7FB",
-          borderRadius: 8,
-          padding: "16px 18px",
-          margin: "0 0 20px",
+          backgroundColor: "#FAF8F5",
+          border: "1px solid #E6E1D8",
+          borderRadius: "14px",
+          padding: "20px 24px",
+          marginBottom: "28px",
         }}
       >
         <Text
           style={{
-            fontSize: 12,
+            fontSize: 10,
             fontWeight: 700,
             textTransform: "uppercase" as const,
-            letterSpacing: 1,
-            color: NAVY,
+            letterSpacing: "0.12em",
+            color: DARK,
             margin: "0 0 8px",
+            fontFamily: "'JetBrains Mono', monospace, sans-serif",
           }}
         >
-          Tips para usarlo bien
+          TIPS PARA USAR TU PARCHE
         </Text>
-        <Text style={{ fontSize: 14, color: "#1F2937", margin: 0, lineHeight: "1.6" }}>
-          Úsalo entre 8 y 10 horas, cambia la zona donde lo colocas cada vez que uses
-          uno nuevo y retíralo con cuidado. Si lo humedeces con agua o lo quitas en la
-          ducha, sale más fácil y evitas jalar la piel.
+        <Text style={{ fontSize: 13, color: GRAY_TEXT, margin: 0, lineHeight: "1.6" }}>
+          Úsalo entre 8 y 10 horas sobre la piel limpia y seca. Alterna la zona de colocación cada día (antebrazos, hombros o espalda alta). Si lo humedeces ligeramente antes de retirarlo, se desprende con total suavidad.
         </Text>
+      </Section>
+
+      {/* CTA Button */}
+      <Section style={{ textAlign: "center" as const, marginBottom: "16px" }}>
+        <Link
+          href="https://www.novapatch.care/mx/cuenta"
+          style={{
+            backgroundColor: DARK,
+            color: "#FFFFFF",
+            border: `1px solid ${DARK}`,
+            fontSize: "11px",
+            fontFamily: "-apple-system, BlinkMacSystemFont, Roboto, sans-serif",
+            fontWeight: 600,
+            textTransform: "uppercase" as const,
+            letterSpacing: "0.12em",
+            padding: "14px 32px",
+            borderRadius: "100px",
+            display: "inline-block",
+            textDecoration: "none",
+          }}
+        >
+          VER DETALLE DE TU PEDIDO
+        </Link>
       </Section>
 
       <EmailFooter />
@@ -295,19 +343,18 @@ export default function OrderConfirmation({
 }
 
 OrderConfirmation.defaultProps = {
-  name: "Ramiro",
-  displayId: "1042",
+  name: "Cristian",
+  displayId: "120",
   currencyCode: "mxn",
   items: [
-    { title: "Parche Energía Novapatch", quantity: 1, unit_price: 450, metadata: {} },
-    { title: "Parche Sueño Profundo", quantity: 2, unit_price: 380, metadata: { is_subscription: true } },
+    { title: "Novapatch Sleep", quantity: 1, unit_price: 750, metadata: {} },
   ],
   shippingAddress: {
-    first_name: "Ramiro",
+    first_name: "Cristian",
     last_name: "Dlucca",
-    address_1: "Av. Insurgentes Sur 1234",
+    address_1: "Laguna de Mayran 166 Int C704",
     city: "Ciudad de México",
-    province: "CDMX",
-    postal_code: "03100",
+    province: "Ciudad de México",
+    postal_code: "11320",
   },
 }
