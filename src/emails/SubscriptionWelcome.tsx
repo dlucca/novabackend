@@ -1,9 +1,12 @@
 // src/emails/SubscriptionWelcome.tsx
-import { Heading, Text, Link } from "@react-email/components"
+import { Heading, Text, Section, Link } from "@react-email/components"
 import * as React from "react"
 import { EmailLayout } from "./components/EmailLayout"
 import { EmailHeader } from "./components/EmailHeader"
 import { EmailFooter } from "./components/EmailFooter"
+
+const DARK = "#0F0F0F"
+const GRAY = "#3A3A37"
 
 type SubscriptionItem = {
   title: string
@@ -27,30 +30,18 @@ export default function SubscriptionWelcome({ name, orderId, subscriptionItems }
     <EmailLayout preview="¡Tu suscripción Novapatch está activa!">
       <EmailHeader />
 
-      <Heading style={{ color: "#003D70", fontSize: "22px", margin: "0 0 8px" }}>
-        ¡Hola, {name}!
+      <Heading style={{ color: DARK, fontSize: 22, margin: "0 0 4px", fontWeight: 700 }}>
+        ¡Bienvenido a tu suscripción, {name}!
       </Heading>
-      <Text style={{ color: "#1a1a1a", margin: "0 0 8px" }}>
-        Tu pedido <strong>#{orderId}</strong> fue confirmado y tu suscripción ya está activa.
+      <Text style={{ color: GRAY, fontSize: 14, margin: "0 0 20px" }}>
+        Tu pedido <strong>#{orderId}</strong> fue confirmado y tu plan de bienestar ya está activo.
       </Text>
 
-      <Text style={{ color: "#1a1a1a", fontWeight: 600, margin: "16px 0 8px" }}>
-        Productos suscritos:
-      </Text>
-
-      {subscriptionItems.map((item, i) => (
-        <Text key={i} style={{ color: "#1a1a1a", margin: "4px 0", paddingLeft: "16px" }}>
-          · <strong>{item.title}</strong> — suscripción {intervalLabel(item.interval_days)}
+      <Section style={{ backgroundColor: "#FAF8F5", border: "1px solid #E6E1D8", borderRadius: 14, padding: "20px 24px", marginBottom: 24 }}>
+        <Text style={{ fontSize: 13, color: GRAY, margin: 0, lineHeight: "1.6" }}>
+          A partir de hoy recibirás tus parches automáticamente en la puerta de tu casa. Podrás pausar, modificar o cancelar tu plan en cualquier momento desde tu panel de usuario.
         </Text>
-      ))}
-
-      <Text style={{ color: "#1a1a1a", marginTop: "20px" }}>
-        Te cobraremos automáticamente en la fecha de tu próximo ciclo. Puedes pausar, cancelar o cambiar la frecuencia desde tu cuenta en{" "}
-        <Link href="https://novapatch.care/cuenta/suscripciones" style={{ color: "#17B8A3" }}>
-          novapatch.care
-        </Link>
-        .
-      </Text>
+      </Section>
 
       <EmailFooter />
     </EmailLayout>
@@ -58,8 +49,8 @@ export default function SubscriptionWelcome({ name, orderId, subscriptionItems }
 }
 
 SubscriptionWelcome.defaultProps = {
-  name: "Ramiro",
-  orderId: "1042",
+  name: "Cristian",
+  orderId: "120",
   subscriptionItems: [
     { title: "Parche Energía Novapatch", interval_days: 30 },
   ],

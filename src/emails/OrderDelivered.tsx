@@ -6,9 +6,8 @@ import { EmailHeader } from "./components/EmailHeader"
 import { EmailFooter } from "./components/EmailFooter"
 import { OrderStatusTracker } from "./components/OrderStatusTracker"
 
-const NAVY = "#003D70"
-const CORAL = "#E8503A"
-const GRAY = "#6B7280"
+const DARK = "#0F0F0F"
+const GRAY = "#3A3A37"
 
 type Props = {
   name: string
@@ -23,27 +22,27 @@ export default function OrderDelivered({ name, displayId, trackingNumber }: Prop
     <EmailLayout preview={`Tu pedido #${displayId} fue entregado — Novapatch`}>
       <EmailHeader />
 
-      <Heading style={{ color: NAVY, fontSize: 22, margin: "0 0 4px", fontWeight: 700 }}>
+      <Heading style={{ color: DARK, fontSize: 22, margin: "0 0 4px", fontWeight: 700 }}>
         ¡Hola, {name}!
       </Heading>
-      <Text style={{ color: GRAY, fontSize: 15, margin: "0 0 2px" }}>
-        Tu pedido #{displayId} fue entregado
+      <Text style={{ color: GRAY, fontSize: 14, margin: "0 0 20px" }}>
+        Tu pedido #{displayId} ha sido entregado en tu domicilio.
       </Text>
 
       <OrderStatusTracker currentStep={2} />
 
-      <Hr style={{ borderColor: "#E5E7EB", margin: "4px 0 20px" }} />
+      <Hr style={{ borderColor: "#E6E1D8", margin: "16px 0 20px" }} />
 
-      <Section style={{ backgroundColor: "#F0FDF4", borderRadius: 8, padding: "16px 20px", marginBottom: 24 }}>
-        <Text style={{ fontSize: 14, color: "#15803D", margin: "0 0 4px", fontWeight: 600 }}>
-          ¡Entregado con éxito!
+      <Section style={{ backgroundColor: "#FAF8F5", border: "1px solid #E6E1D8", borderRadius: 14, padding: "20px 24px", marginBottom: 24 }}>
+        <Text style={{ fontSize: 14, color: DARK, margin: "0 0 4px", fontWeight: 700 }}>
+          ¡Entregado con éxito! 🎉
         </Text>
         <Text style={{ fontSize: 13, color: GRAY, margin: 0 }}>
-          Guía: {trackingNumber}
+          Guía: <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{trackingNumber}</strong>
         </Text>
       </Section>
 
-      <Text style={{ fontSize: 14, color: GRAY, margin: "0 0 24px" }}>
+      <Text style={{ fontSize: 13, color: GRAY, margin: "0 0 24px", lineHeight: "1.6" }}>
         Esperamos que disfrutes tu Novapatch. Si tienes algún problema con tu pedido, escríbenos a hola@novapatch.care.
       </Text>
 
@@ -51,12 +50,14 @@ export default function OrderDelivered({ name, displayId, trackingNumber }: Prop
         <Button
           href={`${storeUrl}/tienda`}
           style={{
-            backgroundColor: CORAL,
+            backgroundColor: DARK,
             color: "#ffffff",
-            borderRadius: 6,
-            padding: "13px 28px",
-            fontSize: 14,
-            fontWeight: 700,
+            borderRadius: 100,
+            padding: "14px 32px",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase" as const,
             textDecoration: "none",
             display: "inline-block",
           }}
@@ -71,7 +72,7 @@ export default function OrderDelivered({ name, displayId, trackingNumber }: Prop
 }
 
 OrderDelivered.defaultProps = {
-  name: "Ramiro",
-  displayId: "1042",
-  trackingNumber: "1Z999AA10123456784",
+  name: "Cristian",
+  displayId: "120",
+  trackingNumber: "ENVIA-98420194",
 }

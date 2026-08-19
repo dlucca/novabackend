@@ -6,16 +6,16 @@ import { EmailHeader } from "./components/EmailHeader"
 import { EmailFooter } from "./components/EmailFooter"
 import { OrderStatusTracker } from "./components/OrderStatusTracker"
 
-const NAVY = "#003D70"
-const CORAL = "#E8503A"
-const GRAY = "#6B7280"
+const DARK = "#0F0F0F"
+const GRAY = "#3A3A37"
 
 type Props = {
   name: string
   displayId: string | number
   trackingNumber: string
-  status: "failed" | "returned"
+  status?: "failed" | "returned"
   failureReason?: string
+  reason?: string
 }
 
 export default function OrderDeliveryFailed({
@@ -24,43 +24,41 @@ export default function OrderDeliveryFailed({
   trackingNumber,
   status,
   failureReason,
+  reason,
 }: Props) {
   const isReturned = status === "returned"
   const headline = isReturned
     ? `Tu pedido #${displayId} fue devuelto`
     : `No pudimos entregar tu pedido #${displayId}`
-  const bodyText = isReturned
-    ? "El paquete fue regresado al remitente. Contáctanos para coordinar una nueva entrega."
-    : "El transportista intentó entregar tu pedido pero no fue posible completarlo. Contáctanos para ayudarte."
 
   return (
     <EmailLayout preview={`${headline} — Novapatch`}>
       <EmailHeader />
 
-      <Heading style={{ color: NAVY, fontSize: 22, margin: "0 0 4px", fontWeight: 700 }}>
+      <Heading style={{ color: DARK, fontSize: 22, margin: "0 0 4px", fontWeight: 700 }}>
         ¡Hola, {name}!
       </Heading>
-      <Text style={{ color: GRAY, fontSize: 15, margin: "0 0 2px" }}>
-        {headline}
+      <Text style={{ color: GRAY, fontSize: 14, margin: "0 0 20px" }}>
+        La paquetería no pudo completar la entrega de tu pedido #{displayId}.
       </Text>
 
       <OrderStatusTracker currentStep={2} variant="failed" />
 
-      <Hr style={{ borderColor: "#E5E7EB", margin: "4px 0 20px" }} />
+      <Hr style={{ borderColor: "#E6E1D8", margin: "16px 0 20px" }} />
 
-      <Section style={{ backgroundColor: "#FEF2F2", borderRadius: 8, padding: "16px 20px", marginBottom: 24 }}>
-        <Text style={{ fontSize: 14, color: "#DC2626", margin: "0 0 4px", fontWeight: 600 }}>
-          {isReturned ? "Pedido devuelto" : "Entrega fallida"}
+      <Section style={{ backgroundColor: "#FAF8F5", border: "1px solid #E6E1D8", borderRadius: 14, padding: "20px 24px", marginBottom: 24 }}>
+        <Text style={{ fontSize: 14, color: DARK, margin: "0 0 6px", fontWeight: 700 }}>
+          Aviso de Entrega Pendiente
         </Text>
-        <Text style={{ fontSize: 13, color: GRAY, margin: "0 0 8px" }}>
-          {bodyText}
+        <Text style={{ fontSize: 13, color: GRAY, margin: "0 0 6px" }}>
+          El transportista intentó entregar tu pedido pero no fue posible completarlo.
         </Text>
         <Text style={{ fontSize: 13, color: GRAY, margin: "0 0 4px" }}>
-          Guía: {trackingNumber}
+          Guía: <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>{trackingNumber}</strong>
         </Text>
-        {failureReason && (
-          <Text style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>
-            Detalle del transportista: {failureReason}
+        {(failureReason || reason) && (
+          <Text style={{ fontSize: 12, color: "#A8A29A", margin: 0 }}>
+            Detalle: {failureReason || reason}
           </Text>
         )}
       </Section>
@@ -69,12 +67,14 @@ export default function OrderDeliveryFailed({
         <Button
           href="mailto:hola@novapatch.care"
           style={{
-            backgroundColor: CORAL,
+            backgroundColor: DARK,
             color: "#ffffff",
-            borderRadius: 6,
-            padding: "13px 28px",
-            fontSize: 14,
-            fontWeight: 700,
+            borderRadius: 100,
+            padding: "14px 32px",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase" as const,
             textDecoration: "none",
             display: "inline-block",
           }}
@@ -89,8 +89,9 @@ export default function OrderDeliveryFailed({
 }
 
 OrderDeliveryFailed.defaultProps = {
-  name: "Ramiro",
-  displayId: "1042",
-  trackingNumber: "1Z999AA10123456784",
+  name: "Cristian",
+  displayId: "120",
+  trackingNumber: "ENVIA-98420194",
   status: "failed" as "failed" | "returned",
+  reason: "Dirección incompleta o sin respuesta en domicilio",
 }

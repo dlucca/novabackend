@@ -1,12 +1,15 @@
 // src/emails/CartRecovery.tsx
-import { Heading, Text, Button, Section } from "@react-email/components"
+import { Heading, Text, Section, Button } from "@react-email/components"
 import * as React from "react"
 import { EmailLayout } from "./components/EmailLayout"
 import { EmailHeader } from "./components/EmailHeader"
 import { EmailFooter } from "./components/EmailFooter"
 
+const DARK = "#0F0F0F"
+const GRAY = "#3A3A37"
+
 type Props = {
-  recoveryUrl: string
+  recoveryUrl?: string
 }
 
 export default function CartRecovery({ recoveryUrl }: Props) {
@@ -14,46 +17,30 @@ export default function CartRecovery({ recoveryUrl }: Props) {
     <EmailLayout preview="Tus parches Novapatch te están esperando">
       <EmailHeader />
 
-      <Heading
-        style={{
-          color: "#003D70",
-          fontSize: "22px",
-          margin: "0 0 16px",
-          lineHeight: "1.3",
-        }}
-      >
-        Hola,
+      <Heading style={{ color: DARK, fontSize: 22, margin: "0 0 8px", fontWeight: 700 }}>
+        Tus parches Novapatch te están esperando
       </Heading>
-
-      <Text style={{ color: "#1a1a1a", margin: "0 0 12px", lineHeight: "1.6" }}>
-        Vimos que estuviste viendo Novapatch y dejaste algunas cosas en tu carrito.
+      <Text style={{ color: GRAY, fontSize: 14, margin: "0 0 20px", lineHeight: "1.6" }}>
+        Hola Cristian, notamos que dejaste algunos productos seleccionados en tu carrito. Guardamos tu selección para que retomes tu pedido cuando gustes.
       </Text>
 
-      <Text style={{ color: "#1a1a1a", margin: "0 0 12px", lineHeight: "1.6" }}>
-        Sabemos que a veces no es el momento… pero si estabas pensando en
-        probarlos, los dejamos listos para vos.
-      </Text>
-
-      <Text style={{ color: "#1a1a1a", margin: "0 0 24px", lineHeight: "1.6" }}>
-        Pequeños cambios en la rutina pueden hacer una diferencia real — sobre
-        todo cuando se trata de energía, foco o desconectar.
-      </Text>
-
-      <Section style={{ textAlign: "center", margin: "32px 0" }}>
+      <Section style={{ textAlign: "center" as const, margin: "24px 0" }}>
         <Button
-          href={recoveryUrl}
+          href={recoveryUrl || "https://www.novapatch.care/mx/checkout"}
           style={{
-            backgroundColor: "#17B8A3",
+            backgroundColor: DARK,
             color: "#ffffff",
+            borderRadius: 100,
             padding: "14px 32px",
-            borderRadius: "6px",
-            fontSize: "15px",
+            fontSize: 11,
             fontWeight: 600,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase" as const,
             textDecoration: "none",
             display: "inline-block",
           }}
         >
-          Volver a mi carrito
+          VOLVER A MI CARRITO
         </Button>
       </Section>
 
@@ -63,5 +50,5 @@ export default function CartRecovery({ recoveryUrl }: Props) {
 }
 
 CartRecovery.defaultProps = {
-  recoveryUrl: "https://novapatch.care/cart-recovery?id=cart_01TEST",
+  recoveryUrl: "https://www.novapatch.care/mx/checkout",
 }

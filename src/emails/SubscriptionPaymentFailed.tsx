@@ -1,90 +1,51 @@
 // src/emails/SubscriptionPaymentFailed.tsx
-import { Heading, Text, Link, Section } from "@react-email/components"
+import { Heading, Text, Section, Button } from "@react-email/components"
 import * as React from "react"
 import { EmailLayout } from "./components/EmailLayout"
 import { EmailHeader } from "./components/EmailHeader"
 import { EmailFooter } from "./components/EmailFooter"
 
+const DARK = "#0F0F0F"
+const GRAY = "#3A3A37"
+
 type Props = {
   customerName: string
-  reason: string
+  reason?: string
   error?: string
-  frontendUrl: string
+  frontendUrl?: string
 }
 
-export default function SubscriptionPaymentFailed({ customerName, reason, error, frontendUrl }: Props) {
-  const reasonText =
-    reason === "no_card"
-      ? "No encontramos una tarjeta registrada en tu cuenta."
-      : "El cargo a tu tarjeta fue rechazado."
-
+export default function SubscriptionPaymentFailed({ customerName, reason, error }: Props) {
   return (
     <EmailLayout preview="Novapatch — Problema con tu pago de suscripción">
-      {/* Red-tinted header band */}
-      <Section style={{ backgroundColor: "#FEF2F2", borderRadius: "6px", padding: "20px", marginBottom: "24px" }}>
-        <EmailHeader />
-        <Heading style={{ color: "#DC2626", fontSize: "22px", margin: "0 0 4px", textAlign: "center" as const }}>
-          No pudimos procesar tu pago
-        </Heading>
-      </Section>
+      <EmailHeader />
 
-      <Text style={{ color: "#1a1a1a", margin: "0 0 16px" }}>
-        Hola, {customerName || "cliente"}.
-      </Text>
-      <Text style={{ color: "#1a1a1a", margin: "0 0 16px" }}>
-        Tuvimos un problema al cobrar tu suscripción Novapatch. Tu suscripción quedó pausada temporalmente para que puedas actualizar tu método de pago.
+      <Heading style={{ color: DARK, fontSize: 22, margin: "0 0 4px", fontWeight: 700 }}>
+        No pudimos procesar tu pago de suscripción
+      </Heading>
+      <Text style={{ color: GRAY, fontSize: 14, margin: "0 0 20px" }}>
+        Hola {customerName}, la tarjeta asociada a tu plan <strong>Suscripción Pack Día & Noche</strong> fue rechazada.
       </Text>
 
-      {/* Alert box */}
-      <Section
-        style={{
-          backgroundColor: "#FEF2F2",
-          borderLeft: "4px solid #DC2626",
-          borderRadius: "4px",
-          padding: "12px 16px",
-          margin: "0 0 20px",
-        }}
-      >
-        <Text style={{ color: "#991b1b", fontSize: "14px", margin: 0 }}>
-          {reasonText}
-          {error ? ` Detalle: ${error}` : ""}
-        </Text>
-      </Section>
-
-      <Text style={{ color: "#1a1a1a", fontWeight: 600, margin: "0 0 8px" }}>
-        Para reactivar tu suscripción:
-      </Text>
-      <Text style={{ color: "#1a1a1a", margin: "4px 0", paddingLeft: "16px" }}>1. Ingresa a tu cuenta en novapatch.care</Text>
-      <Text style={{ color: "#1a1a1a", margin: "4px 0", paddingLeft: "16px" }}>2. Ve a <strong>Mi cuenta → Suscripciones</strong></Text>
-      <Text style={{ color: "#1a1a1a", margin: "4px 0", paddingLeft: "16px" }}>3. Actualiza tu método de pago</Text>
-      <Text style={{ color: "#1a1a1a", margin: "4px 0 20px", paddingLeft: "16px" }}>4. Reanuda tu suscripción</Text>
-
-      {/* Navy CTA button */}
       <Section style={{ textAlign: "center" as const, margin: "24px 0" }}>
-        <Link
-          href={`${frontendUrl}/cuenta/suscripciones`}
+        <Button
+          href="https://www.novapatch.care/mx/cuenta"
           style={{
-            backgroundColor: "#003D70",
+            backgroundColor: DARK,
             color: "#ffffff",
-            padding: "12px 28px",
-            borderRadius: "6px",
-            fontWeight: 700,
+            borderRadius: 100,
+            padding: "14px 32px",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase" as const,
             textDecoration: "none",
-            fontSize: "15px",
             display: "inline-block",
           }}
         >
-          Actualizar método de pago
-        </Link>
+          ACTUALIZAR MÉTODO DE PAGO
+        </Button>
       </Section>
-
-      <Text style={{ color: "#1a1a1a", marginTop: "8px" }}>
-        ¿Necesitas ayuda? Escríbenos a{" "}
-        <Link href="mailto:hola@novapatch.care" style={{ color: "#17B8A3" }}>
-          hola@novapatch.care
-        </Link>
-        .
-      </Text>
 
       <EmailFooter />
     </EmailLayout>
@@ -92,7 +53,6 @@ export default function SubscriptionPaymentFailed({ customerName, reason, error,
 }
 
 SubscriptionPaymentFailed.defaultProps = {
-  customerName: "Ramiro",
+  customerName: "Cristian",
   reason: "charge_failed",
-  frontendUrl: "https://novapatch.care",
 }
