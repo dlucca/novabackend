@@ -90,5 +90,9 @@ export default defineMiddlewares({
       matcher: "/shipping-options*",
       middlewares: [promotionsCors],
     },
+    {
+      matcher: "/store/custom/emails*",
+      middlewares: [promotionsCors],
+    },
   ],
 })
