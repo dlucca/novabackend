@@ -2,11 +2,10 @@
 import { Row, Column, Section, Text, Link } from "@react-email/components"
 import * as React from "react"
 
-const NAVY = "#003D70"
-const CORAL = "#E8503A"
+const DARK = "#0F0F0F"
 const RED = "#DC2626"
-const GRAY_BG = "#E5E7EB"
-const GRAY_TEXT = "#9CA3AF"
+const BORDER = "#E6E1D8"
+const MUTED = "#A8A29A"
 
 type StepDef = {
   label: string
@@ -27,70 +26,6 @@ type Props = {
   trackingUrl?: string
 }
 
-function StepCircle({
-  step,
-  index,
-  active,
-  completed,
-  isFailed,
-}: {
-  step: StepDef
-  index: number
-  active: boolean
-  completed: boolean
-  isFailed: boolean
-}) {
-  let bg: string
-  let borderColor: string
-  let textColor: string
-
-  const showFail = isFailed && index === 2
-
-  if (showFail) {
-    bg = RED
-    borderColor = RED
-    textColor = "#ffffff"
-  } else if (active) {
-    bg = CORAL
-    borderColor = CORAL
-    textColor = "#ffffff"
-  } else if (completed) {
-    bg = NAVY
-    borderColor = NAVY
-    textColor = "#ffffff"
-  } else {
-    bg = "transparent"
-    borderColor = GRAY_BG
-    textColor = GRAY_TEXT
-  }
-
-  const char = showFail ? FAILED_CHAR : step.char
-
-  return (
-    <table cellPadding={0} cellSpacing={0} style={{ margin: "0 auto" }}>
-      <tr>
-        <td
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 24,
-            backgroundColor: bg,
-            border: `2px solid ${borderColor}`,
-            textAlign: "center" as const,
-            verticalAlign: "middle" as const,
-            fontSize: 18,
-            color: textColor,
-            fontFamily: "Arial, sans-serif",
-            lineHeight: "48px",
-          }}
-        >
-          {char}
-        </td>
-      </tr>
-    </table>
-  )
-}
-
 export function OrderStatusTracker({
   currentStep,
   variant = "default",
@@ -99,87 +34,101 @@ export function OrderStatusTracker({
   const isFailed = variant === "failed"
 
   return (
-    <Section style={{ margin: "28px 0 20px" }}>
-      {/* Circles + lines */}
-      <Row>
-        {STEPS.map((step, i) => {
-          const active = i === currentStep
-          const completed = i < currentStep
-          const isLast = i === STEPS.length - 1
+    <Section style={{ margin: "20px 0" }}>
+      <table
+        width="100%"
+        cellPadding={0}
+        cellSpacing={0}
+        style={{
+          backgroundColor: "#FAF8F5",
+          border: "1px solid #E6E1D8",
+          borderRadius: 16,
+          padding: "20px 16px",
+        }}
+      >
+        <tr>
+          {STEPS.map((step, i) => {
+            const active = i === currentStep
+            const completed = i < currentStep
+            const isCurrentOrDone = active || completed
+            const showFailed = isFailed && i === 2
 
-          return (
-            <React.Fragment key={i}>
-              <Column style={{ width: 64, textAlign: "center" as const }}>
-                <StepCircle
-                  step={step}
-                  index={i}
-                  active={active}
-                  completed={completed}
-                  isFailed={isFailed}
-                />
-              </Column>
-              {!isLast && (
-                <Column style={{ verticalAlign: "middle" as const, paddingBottom: 4 }}>
-                  <div
-                    style={{
-                      height: 2,
-                      backgroundColor: completed ? NAVY : GRAY_BG,
-                    }}
-                  />
-                </Column>
-              )}
-            </React.Fragment>
-          )
-        })}
-      </Row>
+            let bg: string
+            let border: string
+            let charColor: string
+            let labelColor: string
+            let fontWeight: number = 500
 
-      {/* Labels */}
-      <Row style={{ marginTop: 10 }}>
-        {STEPS.map((step, i) => {
-          const active = i === currentStep
-          const completed = i < currentStep
-          const isLast = i === STEPS.length - 1
-          const showFailed = isFailed && i === 2
+            if (showFailed) {
+              bg = RED
+              border = RED
+              charColor = "#ffffff"
+              labelColor = RED
+              fontWeight = 700
+            } else if (isCurrentOrDone) {
+              bg = DARK
+              border = DARK
+              charColor = "#ffffff"
+              labelColor = DARK
+              fontWeight = 700
+            } else {
+              bg = "#ffffff"
+              border = BORDER
+              charColor = MUTED
+              labelColor = MUTED
+              fontWeight = 500
+            }
 
-          let labelColor: string
-          if (showFailed) {
-            labelColor = RED
-          } else if (active) {
-            labelColor = CORAL
-          } else if (completed) {
-            labelColor = NAVY
-          } else {
-            labelColor = GRAY_TEXT
-          }
+            const displayChar = showFailed ? FAILED_CHAR : step.char
 
-          return (
-            <React.Fragment key={i}>
-              <Column style={{ width: 64, textAlign: "center" as const }}>
-                <Text
+            return (
+              <td key={i} width="33.33%" align="center" style={{ verticalAlign: "top" }}>
+                <table cellPadding={0} cellSpacing={0} style={{ margin: "0 auto 8px" }}>
+                  <tr>
+                    <td
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: bg,
+                        border: `1px solid ${border}`,
+                        textAlign: "center" as const,
+                        verticalAlign: "middle" as const,
+                        fontSize: 14,
+                        color: charColor,
+                        fontFamily: "-apple-system, BlinkMacSystemFont, Roboto, sans-serif",
+                        lineHeight: "38px",
+                      }}
+                    >
+                      {displayChar}
+                    </td>
+                  </tr>
+                </table>
+                <p
                   style={{
-                    fontSize: 10,
-                    lineHeight: "1.3",
-                    margin: 0,
+                    fontFamily: "-apple-system, BlinkMacSystemFont, Roboto, sans-serif",
+                    fontSize: 12,
+                    fontWeight: fontWeight,
                     color: labelColor,
-                    fontWeight: active || showFailed ? 700 : 400,
+                    margin: 0,
+                    lineHeight: "1.3",
                   }}
                 >
                   {showFailed ? "No entregado" : step.label}
-                </Text>
-              </Column>
-              {!isLast && <Column />}
-            </React.Fragment>
-          )
-        })}
-      </Row>
+                </p>
+              </td>
+            )
+          })}
+        </tr>
+      </table>
 
       {/* Tracking link */}
       {trackingUrl && (
-        <Row style={{ marginTop: 16 }}>
+        <Row style={{ marginTop: 14 }}>
           <Column style={{ textAlign: "center" as const }}>
-            <Text style={{ fontSize: 13, margin: 0, color: "#4B5563" }}>
+            <Text style={{ fontSize: 13, fontFamily: "-apple-system, BlinkMacSystemFont, Roboto, sans-serif", margin: 0, color: "#3A3A37" }}>
               Podés seguir tu pedido{" "}
-              <Link href={trackingUrl} style={{ color: CORAL, fontWeight: 700 }}>
+              <Link href={trackingUrl} style={{ color: DARK, fontWeight: 700, textDecoration: "underline" }}>
                 haciendo clic aquí
               </Link>
             </Text>
