@@ -30,3 +30,4 @@ build
 
 # Imágenes de producto locales (el storage canónico es R2)
 product-images/
+emails
