@@ -1,6 +1,6 @@
 import { createPromotionsWorkflow } from "@medusajs/medusa/core-flows"
 import { ExecArgs } from "@medusajs/framework/types"
-import { PromotionType } from "@medusajs/framework/utils"
+import { PromotionType, PromotionStatus } from "@medusajs/framework/utils"
 
 export default async function createBienvenido10Promo({ container }: ExecArgs) {
   console.log("Creando o verificando promoción BIENVENIDO10 en Medusa V2...")
@@ -12,6 +12,7 @@ export default async function createBienvenido10Promo({ container }: ExecArgs) {
           {
             code: "BIENVENIDO10",
             type: PromotionType.STANDARD,
+            status: PromotionStatus.ACTIVE,
             is_automatic: false,
             application_method: {
               type: "percentage",
