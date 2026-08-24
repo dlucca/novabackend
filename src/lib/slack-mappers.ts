@@ -313,13 +313,35 @@ export function mapPaymentCapturedToSlackBlocks(order: any): SlackBlock[] {
   const displayId = order.display_id ? `#${order.display_id}` : order.id
   const date = formatDate(order.created_at)
   const currency = (order.currency_code ?? "mxn").toUpperCase()
-  const total =
-    typeof order.total === "number"
-      ? new Intl.NumberFormat("es-MX", {
-          style: "currency",
-          currency: currency === "MXN" ? "MXN" : currency,
-        }).format(order.total)
-      : `${order.total} ${currency}`
+
+  // Calculate order total correctly in Medusa V2
+  let numericTotal = 0
+  if (typeof order.total === "number") {
+    numericTotal = order.total
+  } else if (typeof order.total === "string") {
+    numericTotal = parseFloat(order.total)
+  } else if (order.total?.numeric != null) {
+    numericTotal = Number(order.total.numeric)
+  } else if (order.summary?.current_order_total != null) {
+    numericTotal = Number(order.summary.current_order_total)
+  } else if (order.summary?.raw_current_order_total?.value != null) {
+    numericTotal = Number(order.summary.raw_current_order_total.value)
+  }
+
+  // Fallback: If order.total is 0, string "0.000...", or NaN, compute from line items
+  if (!numericTotal || isNaN(numericTotal)) {
+    const items = order.items ?? []
+    numericTotal = items.reduce((sum: number, item: any) => {
+      const price = typeof item.unit_price === "number" ? item.unit_price : parseFloat(item.unit_price ?? "0")
+      const qty = item.quantity ?? item.detail?.quantity ?? 1
+      return sum + (price * qty)
+    }, 0)
+  }
+
+  const total = new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: currency === "MXN" ? "MXN" : currency,
+  }).format(numericTotal)
 
   const customerName =
     [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") ||
@@ -333,10 +355,11 @@ export function mapPaymentCapturedToSlackBlocks(order: any): SlackBlock[] {
   const productsList =
     items
       .map((item: any) => {
+        const qty = item.quantity ?? item.detail?.quantity ?? 1
         const sub = item.metadata?.is_subscription
-          ? ` _(suscripción ${item.metadata.interval_days}d)_`
+          ? ` _(suscripción ${item.metadata.interval_days ?? 30}d)_`
           : ""
-        return `• ${item.title} x${item.quantity}${sub}`
+        return `• ${item.title} x${qty}${sub}`
       })
       .join("\n") || "—"
 
@@ -390,7 +413,10 @@ export function mapFulfillmentToSlackBlocks(
   )
 
   const productsList =
-    items.map((item: any) => `• ${item.title} x${item.quantity}`).join("\n") || "—"
+    items.map((item: any) => {
+    const qty = item.quantity ?? item.detail?.quantity ?? 1
+    return `• ${item.title} x${qty}`
+  }).join("\n") || "—"
 
   return [
     {
