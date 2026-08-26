@@ -51,11 +51,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  const paymentAmount = cart.total ?? session.amount ?? cart.payment_collection?.amount
-  if (!paymentAmount) {
+  const rawAmount = cart.total ?? session.amount ?? cart.payment_collection?.amount
+  if (!rawAmount) {
     res.status(422).json({ message: "Cart has no chargeable amount" })
     return
   }
+
+  const bundleDiscount = typeof cart.metadata?.bundle_discount === "number"
+    ? cart.metadata.bundle_discount
+    : parseFloat(String(cart.metadata?.bundle_discount ?? "0")) || 0
+
+  const paymentAmount = Math.max(0, rawAmount - bundleDiscount)
 
   const currencyCode = (
     cart.currency_code ??
