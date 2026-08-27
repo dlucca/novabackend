@@ -9,6 +9,7 @@ const CART_FIELDS = [
   "email",
   "total",
   "currency_code",
+  "metadata",
   "customer.id",
   "customer.email",
   "customer.first_name",
@@ -16,6 +17,11 @@ const CART_FIELDS = [
   "customer.metadata",
   "shipping_address.first_name",
   "shipping_address.last_name",
+  "items.id",
+  "items.quantity",
+  "items.unit_price",
+  "items.metadata",
+  "items.variant.product.handle",
   "payment_collection.id",
   "payment_collection.amount",
   "payment_collection.currency_code",
@@ -24,6 +30,62 @@ const CART_FIELDS = [
   "payment_collection.payment_sessions.amount",
   "payment_collection.payment_sessions.currency_code",
 ]
+
+/**
+ * Recalculate bundle discount server-side from the cart's actual line items.
+ *
+ * Mirrors the logic in apps/storefront/lib/cart.ts → cartTotals().
+ * Only "once" (non-subscription) items qualify for bundle discounts.
+ * Subscription items get their discount via variant metadata (discount_percentage),
+ * not via bundle logic.
+ *
+ * Bundle rules (greedy, evaluated in priority order):
+ *   Pack Trío Vitalidad  = energy + sleep + zen  → $450 OFF per set
+ *   Pack Día & Noche     = energy + sleep          → $225 OFF per set
+ *   Pack Calma & Sueño   = zen   + sleep          → $225 OFF per set
+ *   Pack Glow & Balance  = glow  + woman           → $225 OFF per set
+ */
+function computeBundleDiscount(items: Array<{ handle: string; quantity: number; isSubscription: boolean }>): number {
+  const qtyMap: Record<string, number> = {}
+  for (const item of items) {
+    if (!item.isSubscription) {
+      qtyMap[item.handle] = (qtyMap[item.handle] ?? 0) + item.quantity
+    }
+  }
+
+  let bundleDiscount = 0
+
+  const trioCount = Math.min(qtyMap["energy"] ?? 0, qtyMap["sleep"] ?? 0, qtyMap["zen"] ?? 0)
+  if (trioCount > 0) {
+    bundleDiscount += trioCount * 450
+    qtyMap["energy"] -= trioCount
+    qtyMap["sleep"]  -= trioCount
+    qtyMap["zen"]    -= trioCount
+  }
+
+  const diaNocheCount = Math.min(qtyMap["energy"] ?? 0, qtyMap["sleep"] ?? 0)
+  if (diaNocheCount > 0) {
+    bundleDiscount += diaNocheCount * 225
+    qtyMap["energy"] -= diaNocheCount
+    qtyMap["sleep"]  -= diaNocheCount
+  }
+
+  const calmaSuenoCount = Math.min(qtyMap["zen"] ?? 0, qtyMap["sleep"] ?? 0)
+  if (calmaSuenoCount > 0) {
+    bundleDiscount += calmaSuenoCount * 225
+    qtyMap["zen"]   -= calmaSuenoCount
+    qtyMap["sleep"] -= calmaSuenoCount
+  }
+
+  const glowBalanceCount = Math.min(qtyMap["glow"] ?? 0, qtyMap["woman"] ?? 0)
+  if (glowBalanceCount > 0) {
+    bundleDiscount += glowBalanceCount * 225
+    qtyMap["glow"]  -= glowBalanceCount
+    qtyMap["woman"] -= glowBalanceCount
+  }
+
+  return bundleDiscount
+}
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const cartId = req.params.id
@@ -57,11 +119,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  const bundleDiscount = typeof cart.metadata?.bundle_discount === "number"
+  const lineItems = (cart.items ?? []).map((item: any) => ({
+    handle: item.variant?.product?.handle ?? "",
+    quantity: item.quantity ?? 1,
+    isSubscription: !!(item.metadata?.is_subscription ?? item.variant?.metadata?.is_subscription),
+  }))
+  const computedBundleDiscount = computeBundleDiscount(lineItems)
+
+  const clientBundleDiscount = typeof cart.metadata?.bundle_discount === "number"
     ? cart.metadata.bundle_discount
     : parseFloat(String(cart.metadata?.bundle_discount ?? "0")) || 0
+  if (clientBundleDiscount !== computedBundleDiscount) {
+    logger.warn(
+      `[CompleteCart] bundle_discount mismatch on cart ${cartId}: ` +
+      `client sent ${clientBundleDiscount}, server computed ${computedBundleDiscount}. ` +
+      `Using server value.`
+    )
+  }
 
-  const paymentAmount = Math.max(0, rawAmount - bundleDiscount)
+  const paymentAmount = Math.max(0, rawAmount - computedBundleDiscount)
 
   const currencyCode = (
     cart.currency_code ??
