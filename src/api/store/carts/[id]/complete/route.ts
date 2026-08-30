@@ -3,6 +3,7 @@ import { completeCartWorkflow } from "@medusajs/medusa/core-flows"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { OpenpayClient } from "../../../../../modules/openpay-payment/openpay-client"
 import { MercadoPagoClient } from "../../../../../modules/mercadopago-payment/mercadopago-client"
+import { computeBundleItemPriceUpdates } from "../../../../../lib/bundle-pricing"
 
 const CART_FIELDS = [
   "id",
@@ -31,68 +32,13 @@ const CART_FIELDS = [
   "payment_collection.payment_sessions.currency_code",
 ]
 
-/**
- * Recalculate bundle discount server-side from the cart's actual line items.
- *
- * Mirrors the logic in apps/storefront/lib/cart.ts → cartTotals().
- * Only "once" (non-subscription) items qualify for bundle discounts.
- * Subscription items get their discount via variant metadata (discount_percentage),
- * not via bundle logic.
- *
- * Bundle rules (greedy, evaluated in priority order):
- *   Pack Trío Vitalidad  = energy + sleep + zen  → $450 OFF per set
- *   Pack Día & Noche     = energy + sleep          → $225 OFF per set
- *   Pack Calma & Sueño   = zen   + sleep          → $225 OFF per set
- *   Pack Glow & Balance  = glow  + woman           → $225 OFF per set
- */
-function computeBundleDiscount(items: Array<{ handle: string; quantity: number; isSubscription: boolean }>): number {
-  const qtyMap: Record<string, number> = {}
-  for (const item of items) {
-    if (!item.isSubscription) {
-      qtyMap[item.handle] = (qtyMap[item.handle] ?? 0) + item.quantity
-    }
-  }
-
-  let bundleDiscount = 0
-
-  const trioCount = Math.min(qtyMap["energy"] ?? 0, qtyMap["sleep"] ?? 0, qtyMap["zen"] ?? 0)
-  if (trioCount > 0) {
-    bundleDiscount += trioCount * 450
-    qtyMap["energy"] -= trioCount
-    qtyMap["sleep"]  -= trioCount
-    qtyMap["zen"]    -= trioCount
-  }
-
-  const diaNocheCount = Math.min(qtyMap["energy"] ?? 0, qtyMap["sleep"] ?? 0)
-  if (diaNocheCount > 0) {
-    bundleDiscount += diaNocheCount * 225
-    qtyMap["energy"] -= diaNocheCount
-    qtyMap["sleep"]  -= diaNocheCount
-  }
-
-  const calmaSuenoCount = Math.min(qtyMap["zen"] ?? 0, qtyMap["sleep"] ?? 0)
-  if (calmaSuenoCount > 0) {
-    bundleDiscount += calmaSuenoCount * 225
-    qtyMap["zen"]   -= calmaSuenoCount
-    qtyMap["sleep"] -= calmaSuenoCount
-  }
-
-  const glowBalanceCount = Math.min(qtyMap["glow"] ?? 0, qtyMap["woman"] ?? 0)
-  if (glowBalanceCount > 0) {
-    bundleDiscount += glowBalanceCount * 225
-    qtyMap["glow"]  -= glowBalanceCount
-    qtyMap["woman"] -= glowBalanceCount
-  }
-
-  return bundleDiscount
-}
-
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const cartId = req.params.id
   const body = req.body as Record<string, unknown>
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const logger = req.scope.resolve("logger")
+  const cartModuleService = req.scope.resolve(Modules.CART)
 
   let cart: any = null
   try {
@@ -119,25 +65,30 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  const lineItems = (cart.items ?? []).map((item: any) => ({
-    handle: item.variant?.product?.handle ?? "",
-    quantity: item.quantity ?? 1,
-    isSubscription: !!(item.metadata?.is_subscription ?? item.variant?.metadata?.is_subscription),
-  }))
-  const computedBundleDiscount = computeBundleDiscount(lineItems)
+  // ── Apply bundle line item unit price adjustments if not already adjusted ──
+  const { updates: bundleUpdates, totalDiscount: computedBundleDiscount } =
+    computeBundleItemPriceUpdates(cart.items ?? [])
 
-  const clientBundleDiscount = typeof cart.metadata?.bundle_discount === "number"
-    ? cart.metadata.bundle_discount
-    : parseFloat(String(cart.metadata?.bundle_discount ?? "0")) || 0
-  if (clientBundleDiscount !== computedBundleDiscount) {
-    logger.warn(
-      `[CompleteCart] bundle_discount mismatch on cart ${cartId}: ` +
-      `client sent ${clientBundleDiscount}, server computed ${computedBundleDiscount}. ` +
-      `Using server value.`
-    )
+  if (bundleUpdates.length > 0) {
+    try {
+      for (const update of bundleUpdates) {
+        await (cartModuleService as any).updateLineItems(update.id, {
+          unit_price: update.unit_price,
+        })
+      }
+      logger.info(
+        `[CompleteCart] Applied bundle item price updates to cart ${cartId}: discount=$${computedBundleDiscount}`
+      )
+    } catch (updateErr) {
+      logger.error(
+        `[CompleteCart] Failed to update bundle item prices: ${updateErr instanceof Error ? updateErr.message : String(updateErr)}`
+      )
+    }
   }
 
-  const paymentAmount = Math.max(0, rawAmount - computedBundleDiscount)
+  // Idempotent: If items were already adjusted, computedBundleDiscount is 0.
+  // If items were just adjusted now, rawAmount was pre-adjustment so subtract discount.
+  const paymentAmount = Math.max(0, rawAmount - (bundleUpdates.length > 0 ? computedBundleDiscount : 0))
 
   const currencyCode = (
     cart.currency_code ??
@@ -194,8 +145,6 @@ async function completeMercadoPago({
   }
 
   // 1. Get or create MercadoPago customer.
-  // MP rejects empty first/last names (code 108), so we pull from customer
-  // or shipping address and fall back to placeholders if still missing.
   const firstName =
     cart.customer?.first_name ||
     cart.shipping_address?.first_name ||
@@ -203,7 +152,7 @@ async function completeMercadoPago({
   const lastName =
     cart.customer?.last_name ||
     cart.shipping_address?.last_name ||
-    firstName // reuse firstName instead of an empty string
+    firstName
   const mpCustomer = await mp.getOrCreateCustomer({
     email,
     first_name: firstName,
@@ -213,10 +162,6 @@ async function completeMercadoPago({
   logger.info(`[CompleteCart/MP] mp_customer_id=${mpCustomerId}`)
 
   // 2. Charge directly with the one-time token.
-  // MP deprecated generating new tokens from saved cards, and the card-token
-  // one-time token is single-use. Passing payer.id + token in the payment
-  // associates the card with the customer automatically after approval, so
-  // we can look it up later for recurring billing.
   const currencyCode = (
     session.currency_code ??
     cart.payment_collection?.currency_code ??
@@ -279,7 +224,7 @@ async function completeMercadoPago({
     },
   })
 
-  // 7. Complete cart
+  // 6. Complete cart
   logger.info(`[CompleteCart/MP] Running completeCartWorkflow`)
   const { result } = await completeCartWorkflow(req.scope).run({ input: { id: cartId } })
 
