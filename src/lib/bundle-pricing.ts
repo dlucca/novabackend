@@ -6,12 +6,29 @@
  * Subscription items get their discount via variant metadata (discount_percentage),
  * not via bundle logic.
  *
+ * Discounts are PERCENTAGES, not flat amounts, so they work in any region/currency.
+ * They are applied to each line item's own catalog unit_price (which Medusa already
+ * resolves per region), so MXN carts and ARS carts both get the correct discount.
+ *
  * Bundle rules (greedy, evaluated in priority order):
- *   Pack Trío Vitalidad  = energy + sleep + zen  → $450 OFF per set ($150 off each)
- *   Pack Día & Noche     = energy + sleep          → $225 OFF per set ($112.50 off each)
- *   Pack Calma & Sueño   = zen   + sleep          → $225 OFF per set ($112.50 off each)
- *   Pack Glow & Balance  = glow  + woman           → $225 OFF per set ($112.50 off each)
+ *   Pack Trío Vitalidad  = energy + sleep + zen  → 20% OFF each unit
+ *   Pack Día & Noche     = energy + sleep          → 15% OFF each unit
+ *   Pack Calma & Sueño   = zen   + sleep          → 15% OFF each unit
+ *   Pack Glow & Balance  = glow  + woman           → 15% OFF each unit
+ *
+ * (At the MXN base of $750/unit these resolve to the previous flat amounts:
+ *  trío $150 off/unit, dúo $112.50 off/unit.)
  */
+
+/** Trío Vitalidad: 20% off each unit. */
+export const TRIO_DISCOUNT_PCT = 0.2
+/** Any dúo pack: 15% off each unit. */
+export const DUO_DISCOUNT_PCT = 0.15
+
+/** Rounds to 2 decimals to avoid floating-point drift on prices in major units. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
 
 export interface LineItemInput {
   id?: string
@@ -54,55 +71,85 @@ function resolveOriginalPrice(currentPrice: number, metadata: any): number {
 }
 
 /**
- * Computes total bundle discount amount from line items.
+ * Computes total bundle discount amount from line items, using each unit's own
+ * price and the percentage rules. Region-agnostic: pass the items' catalog
+ * unit_price and the result is in that same currency.
  */
 export function computeBundleDiscount(
-  items: Array<{ handle: string; quantity: number; isSubscription: boolean }>
+  items: Array<{ handle: string; quantity: number; unit_price?: number | string; isSubscription: boolean }>
 ): number {
-  const qtyMap: Record<string, number> = {}
+  // Expand once-items into single units carrying their own price, so a greedy
+  // match can compute the per-unit percentage discount from the real price.
+  const units: Array<{ handle: string; price: number; bundled: boolean }> = []
   for (const item of items) {
-    if (!item.isSubscription) {
-      qtyMap[item.handle] = (qtyMap[item.handle] ?? 0) + item.quantity
+    if (item.isSubscription) continue
+    const price =
+      typeof item.unit_price === "number" ? item.unit_price : parseFloat(String(item.unit_price ?? 0))
+    for (let q = 0; q < item.quantity; q++) {
+      units.push({ handle: item.handle, price: Number.isFinite(price) ? price : 0, bundled: false })
     }
   }
 
+  const take = (handle: string) => units.find((u) => u.handle === handle && !u.bundled)
+
   let bundleDiscount = 0
 
-  const trioCount = Math.min(qtyMap["energy"] ?? 0, qtyMap["sleep"] ?? 0, qtyMap["zen"] ?? 0)
-  if (trioCount > 0) {
-    bundleDiscount += trioCount * 450
-    qtyMap["energy"] -= trioCount
-    qtyMap["sleep"] -= trioCount
-    qtyMap["zen"] -= trioCount
+  // 1. Trío Vitalidad (energy + sleep + zen) — 20% off each
+  while (true) {
+    const e = take("energy")
+    const s = take("sleep")
+    const z = take("zen")
+    if (e && s && z) {
+      for (const u of [e, s, z]) {
+        bundleDiscount += u.price * TRIO_DISCOUNT_PCT
+        u.bundled = true
+      }
+    } else break
   }
 
-  const diaNocheCount = Math.min(qtyMap["energy"] ?? 0, qtyMap["sleep"] ?? 0)
-  if (diaNocheCount > 0) {
-    bundleDiscount += diaNocheCount * 225
-    qtyMap["energy"] -= diaNocheCount
-    qtyMap["sleep"] -= diaNocheCount
+  // 2. Día & Noche (energy + sleep) — 15% off each
+  while (true) {
+    const e = take("energy")
+    const s = take("sleep")
+    if (e && s) {
+      for (const u of [e, s]) {
+        bundleDiscount += u.price * DUO_DISCOUNT_PCT
+        u.bundled = true
+      }
+    } else break
   }
 
-  const calmaSuenoCount = Math.min(qtyMap["zen"] ?? 0, qtyMap["sleep"] ?? 0)
-  if (calmaSuenoCount > 0) {
-    bundleDiscount += calmaSuenoCount * 225
-    qtyMap["zen"] -= calmaSuenoCount
-    qtyMap["sleep"] -= calmaSuenoCount
+  // 3. Calma & Sueño (zen + sleep) — 15% off each
+  while (true) {
+    const z = take("zen")
+    const s = take("sleep")
+    if (z && s) {
+      for (const u of [z, s]) {
+        bundleDiscount += u.price * DUO_DISCOUNT_PCT
+        u.bundled = true
+      }
+    } else break
   }
 
-  const glowBalanceCount = Math.min(qtyMap["glow"] ?? 0, qtyMap["woman"] ?? 0)
-  if (glowBalanceCount > 0) {
-    bundleDiscount += glowBalanceCount * 225
-    qtyMap["glow"] -= glowBalanceCount
-    qtyMap["woman"] -= glowBalanceCount
+  // 4. Glow & Balance (glow + woman) — 15% off each
+  while (true) {
+    const g = take("glow")
+    const w = take("woman")
+    if (g && w) {
+      for (const u of [g, w]) {
+        bundleDiscount += u.price * DUO_DISCOUNT_PCT
+        u.bundled = true
+      }
+    } else break
   }
 
-  return bundleDiscount
+  return round2(bundleDiscount)
 }
 
 /**
  * Computes unit_price updates for cart line items so that Medusa's Cart / Order
- * natively reflects the discounted bundle price.
+ * natively reflects the discounted bundle price. Discounts are percentages of
+ * each item's own catalog price, so this is correct in every region/currency.
  */
 export function computeBundleItemPriceUpdates(
   items: any[]
@@ -113,7 +160,7 @@ export function computeBundleItemPriceUpdates(
   // idempotent instead of stacking discounts.
   const parsedItems = items.map((item) => {
     const currentPrice =
-      typeof item.unit_price === "number" ? item.unit_price : parseFloat(String(item.unit_price ?? 750))
+      typeof item.unit_price === "number" ? item.unit_price : parseFloat(String(item.unit_price ?? 0))
     return {
       id: item.id as string,
       handle: (item.variant?.product?.handle ?? item.handle ?? "") as string,
@@ -128,8 +175,9 @@ export function computeBundleItemPriceUpdates(
 
   // Expand items into single units for granular discount assignment. Units are
   // anchored to originalPrice so the greedy passes always start from the real
-  // catalog price, never from an already-discounted value.
-  const units: Array<{ id: string; handle: string; originalPrice: number; discountedPrice: number }> = []
+  // catalog price, never from an already-discounted value. `bundled` marks a
+  // unit as already consumed by a pack.
+  const units: Array<{ id: string; handle: string; originalPrice: number; discountedPrice: number; bundled: boolean }> = []
   for (const item of onceItems) {
     for (let q = 0; q < item.quantity; q++) {
       units.push({
@@ -137,68 +185,61 @@ export function computeBundleItemPriceUpdates(
         handle: item.handle,
         originalPrice: item.originalPrice,
         discountedPrice: item.originalPrice,
+        bundled: false,
       })
     }
   }
 
+  const take = (handle: string) => units.find((u) => u.handle === handle && !u.bundled)
+
   let totalDiscount = 0
 
-  // 1. Pack Trío Vitalidad (energy + sleep + zen) -> $450 OFF ($150 off each)
-  while (true) {
-    const energyUnit = units.find((u) => u.handle === "energy" && u.discountedPrice === u.originalPrice)
-    const sleepUnit = units.find((u) => u.handle === "sleep" && u.discountedPrice === u.originalPrice)
-    const zenUnit = units.find((u) => u.handle === "zen" && u.discountedPrice === u.originalPrice)
-
-    if (energyUnit && sleepUnit && zenUnit) {
-      energyUnit.discountedPrice = Math.max(0, energyUnit.originalPrice - 150)
-      sleepUnit.discountedPrice = Math.max(0, sleepUnit.originalPrice - 150)
-      zenUnit.discountedPrice = Math.max(0, zenUnit.originalPrice - 150)
-      totalDiscount += 450
-    } else {
-      break
-    }
+  const applyDiscount = (unit: { originalPrice: number; discountedPrice: number; bundled: boolean }, pct: number) => {
+    unit.discountedPrice = round2(Math.max(0, unit.originalPrice * (1 - pct)))
+    unit.bundled = true
+    totalDiscount += round2(unit.originalPrice - unit.discountedPrice)
   }
 
-  // 2. Pack Día & Noche (energy + sleep) -> $225 OFF ($112.50 off each)
+  // 1. Pack Trío Vitalidad (energy + sleep + zen) -> 20% OFF each
   while (true) {
-    const energyUnit = units.find((u) => u.handle === "energy" && u.discountedPrice === u.originalPrice)
-    const sleepUnit = units.find((u) => u.handle === "sleep" && u.discountedPrice === u.originalPrice)
-
-    if (energyUnit && sleepUnit) {
-      energyUnit.discountedPrice = Math.max(0, energyUnit.originalPrice - 112.5)
-      sleepUnit.discountedPrice = Math.max(0, sleepUnit.originalPrice - 112.5)
-      totalDiscount += 225
-    } else {
-      break
-    }
+    const e = take("energy")
+    const s = take("sleep")
+    const z = take("zen")
+    if (e && s && z) {
+      applyDiscount(e, TRIO_DISCOUNT_PCT)
+      applyDiscount(s, TRIO_DISCOUNT_PCT)
+      applyDiscount(z, TRIO_DISCOUNT_PCT)
+    } else break
   }
 
-  // 3. Pack Calma & Sueño (zen + sleep) -> $225 OFF ($112.50 off each)
+  // 2. Pack Día & Noche (energy + sleep) -> 15% OFF each
   while (true) {
-    const zenUnit = units.find((u) => u.handle === "zen" && u.discountedPrice === u.originalPrice)
-    const sleepUnit = units.find((u) => u.handle === "sleep" && u.discountedPrice === u.originalPrice)
-
-    if (zenUnit && sleepUnit) {
-      zenUnit.discountedPrice = Math.max(0, zenUnit.originalPrice - 112.5)
-      sleepUnit.discountedPrice = Math.max(0, sleepUnit.originalPrice - 112.5)
-      totalDiscount += 225
-    } else {
-      break
-    }
+    const e = take("energy")
+    const s = take("sleep")
+    if (e && s) {
+      applyDiscount(e, DUO_DISCOUNT_PCT)
+      applyDiscount(s, DUO_DISCOUNT_PCT)
+    } else break
   }
 
-  // 4. Pack Glow & Balance (glow + woman) -> $225 OFF ($112.50 off each)
+  // 3. Pack Calma & Sueño (zen + sleep) -> 15% OFF each
   while (true) {
-    const glowUnit = units.find((u) => u.handle === "glow" && u.discountedPrice === u.originalPrice)
-    const womanUnit = units.find((u) => u.handle === "woman" && u.discountedPrice === u.originalPrice)
+    const z = take("zen")
+    const s = take("sleep")
+    if (z && s) {
+      applyDiscount(z, DUO_DISCOUNT_PCT)
+      applyDiscount(s, DUO_DISCOUNT_PCT)
+    } else break
+  }
 
-    if (glowUnit && womanUnit) {
-      glowUnit.discountedPrice = Math.max(0, glowUnit.originalPrice - 112.5)
-      womanUnit.discountedPrice = Math.max(0, womanUnit.originalPrice - 112.5)
-      totalDiscount += 225
-    } else {
-      break
-    }
+  // 4. Pack Glow & Balance (glow + woman) -> 15% OFF each
+  while (true) {
+    const g = take("glow")
+    const w = take("woman")
+    if (g && w) {
+      applyDiscount(g, DUO_DISCOUNT_PCT)
+      applyDiscount(w, DUO_DISCOUNT_PCT)
+    } else break
   }
 
   // Group back by line item id to calculate average unit_price. We clamp the
@@ -223,5 +264,5 @@ export function computeBundleItemPriceUpdates(
     }
   }
 
-  return { updates, totalDiscount }
+  return { updates, totalDiscount: round2(totalDiscount) }
 }

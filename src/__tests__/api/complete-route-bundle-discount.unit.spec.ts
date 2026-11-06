@@ -2,44 +2,44 @@ import { computeBundleDiscount, computeBundleItemPriceUpdates } from "../../lib/
 
 describe("Bundle pricing & line item adjustments", () => {
   describe("computeBundleDiscount", () => {
-    it("computes $450 discount for Pack Trío Vitalidad (energy + sleep + zen)", () => {
+    it("computes $450 discount for Pack Trío Vitalidad (energy + sleep + zen) at MXN $750 base", () => {
       const items = [
-        { handle: "energy", quantity: 1, isSubscription: false },
-        { handle: "sleep", quantity: 1, isSubscription: false },
-        { handle: "zen", quantity: 1, isSubscription: false },
+        { handle: "energy", quantity: 1, unit_price: 750, isSubscription: false },
+        { handle: "sleep", quantity: 1, unit_price: 750, isSubscription: false },
+        { handle: "zen", quantity: 1, unit_price: 750, isSubscription: false },
       ]
       expect(computeBundleDiscount(items)).toBe(450)
     })
 
-    it("computes $225 discount for Pack Día & Noche (energy + sleep)", () => {
+    it("computes $225 discount for Pack Día & Noche (energy + sleep) at MXN $750 base", () => {
       const items = [
-        { handle: "energy", quantity: 1, isSubscription: false },
-        { handle: "sleep", quantity: 1, isSubscription: false },
+        { handle: "energy", quantity: 1, unit_price: 750, isSubscription: false },
+        { handle: "sleep", quantity: 1, unit_price: 750, isSubscription: false },
       ]
       expect(computeBundleDiscount(items)).toBe(225)
     })
 
-    it("computes $225 discount for Pack Calma & Sueño (zen + sleep)", () => {
+    it("computes $225 discount for Pack Calma & Sueño (zen + sleep) at MXN $750 base", () => {
       const items = [
-        { handle: "zen", quantity: 1, isSubscription: false },
-        { handle: "sleep", quantity: 1, isSubscription: false },
+        { handle: "zen", quantity: 1, unit_price: 750, isSubscription: false },
+        { handle: "sleep", quantity: 1, unit_price: 750, isSubscription: false },
       ]
       expect(computeBundleDiscount(items)).toBe(225)
     })
 
-    it("computes $225 discount for Pack Glow & Balance (glow + woman)", () => {
+    it("computes $225 discount for Pack Glow & Balance (glow + woman) at MXN $750 base", () => {
       const items = [
-        { handle: "glow", quantity: 1, isSubscription: false },
-        { handle: "woman", quantity: 1, isSubscription: false },
+        { handle: "glow", quantity: 1, unit_price: 750, isSubscription: false },
+        { handle: "woman", quantity: 1, unit_price: 750, isSubscription: false },
       ]
       expect(computeBundleDiscount(items)).toBe(225)
     })
 
     it("ignores subscription items when calculating once bundle discounts", () => {
       const items = [
-        { handle: "energy", quantity: 1, isSubscription: true },
-        { handle: "sleep", quantity: 1, isSubscription: false },
-        { handle: "zen", quantity: 1, isSubscription: false },
+        { handle: "energy", quantity: 1, unit_price: 750, isSubscription: true },
+        { handle: "sleep", quantity: 1, unit_price: 750, isSubscription: false },
+        { handle: "zen", quantity: 1, unit_price: 750, isSubscription: false },
       ]
       // Only sleep + zen are once -> triggers Calma & Sueño ($225), not Trío ($450)
       expect(computeBundleDiscount(items)).toBe(225)
@@ -47,11 +47,22 @@ describe("Bundle pricing & line item adjustments", () => {
 
     it("handles multiple quantities (2 Trios)", () => {
       const items = [
-        { handle: "energy", quantity: 2, isSubscription: false },
-        { handle: "sleep", quantity: 2, isSubscription: false },
-        { handle: "zen", quantity: 2, isSubscription: false },
+        { handle: "energy", quantity: 2, unit_price: 750, isSubscription: false },
+        { handle: "sleep", quantity: 2, unit_price: 750, isSubscription: false },
+        { handle: "zen", quantity: 2, unit_price: 750, isSubscription: false },
       ]
       expect(computeBundleDiscount(items)).toBe(900)
+    })
+
+    it("scales the discount with the region's currency (ARS $60.000 base)", () => {
+      // Argentina: single = $60.000 ARS. Trío = 20% off each -> $12.000 off each
+      // -> $36.000 total. Flat-peso logic would have taken only ~$450.
+      const items = [
+        { handle: "energy", quantity: 1, unit_price: 60000, isSubscription: false },
+        { handle: "sleep", quantity: 1, unit_price: 60000, isSubscription: false },
+        { handle: "zen", quantity: 1, unit_price: 60000, isSubscription: false },
+      ]
+      expect(computeBundleDiscount(items)).toBe(36000)
     })
   })
 
@@ -94,6 +105,23 @@ describe("Bundle pricing & line item adjustments", () => {
       // Total of updated items = 637.5 + 637.5 = 1275
       const newTotal = updates.reduce((sum, u) => sum + u.unit_price, 0)
       expect(newTotal).toBe(1275)
+    })
+
+    it("scales line item prices for Trío in Argentina (ARS 60000 -> 48000 each)", () => {
+      const items = [
+        { id: "item_energy", variant: { product: { handle: "energy" } }, quantity: 1, unit_price: 60000, metadata: {} },
+        { id: "item_sleep", variant: { product: { handle: "sleep" } }, quantity: 1, unit_price: 60000, metadata: {} },
+        { id: "item_zen", variant: { product: { handle: "zen" } }, quantity: 1, unit_price: 60000, metadata: {} },
+      ]
+
+      const { updates, totalDiscount } = computeBundleItemPriceUpdates(items)
+
+      expect(totalDiscount).toBe(36000)
+      expect(updates).toEqual([
+        { id: "item_energy", unit_price: 48000, original_unit_price: 60000 },
+        { id: "item_sleep", unit_price: 48000, original_unit_price: 60000 },
+        { id: "item_zen", unit_price: 48000, original_unit_price: 60000 },
+      ])
     })
 
     it("does not update single items that are not part of any bundle", () => {
