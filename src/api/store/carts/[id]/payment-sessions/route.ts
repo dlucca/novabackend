@@ -4,17 +4,20 @@ import {
   createPaymentCollectionForCartWorkflow,
   addShippingMethodToCartWorkflow,
 } from "@medusajs/medusa/core-flows"
+import { computeBundleItemPriceUpdates } from "../../../../../lib/bundle-pricing"
 
 /**
  * POST /store/carts/:id/payment-sessions
  *
- * Optimized: 1 query + 2 workflows (down from 5 queries + 2 workflows).
- * Adds shipping, creates payment collection, and initializes payment session.
+ * Optimized: 1 query + 2 workflows.
+ * Adjusts bundle item pricing, adds shipping, creates payment collection, and initializes payment session.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const cartId = req.params.id
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const paymentModuleService = req.scope.resolve(Modules.PAYMENT)
+  const cartModuleService = req.scope.resolve(Modules.CART)
+  const logger = req.scope.resolve("logger")
 
   // ── Single query: fetch cart with everything we need ──────────────────────
   let cart: any = null
@@ -26,6 +29,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         "id",
         "currency_code",
         "items.id",
+        "items.quantity",
+        "items.unit_price",
+        "items.metadata",
+        "items.variant.product.handle",
         "shipping_methods.id",
         "payment_collection.id",
         "payment_collection.payment_sessions.id",
@@ -48,7 +55,26 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // ── Workflow 1: add shipping if missing (no extra query needed) ──────────
+  // ── Bundle pricing adjustment on line items ──────────────────────────────
+  const { updates: bundleUpdates, totalDiscount } = computeBundleItemPriceUpdates(cart.items)
+  if (bundleUpdates.length > 0) {
+    try {
+      for (const update of bundleUpdates) {
+        await (cartModuleService as any).updateLineItems(update.id, {
+          unit_price: update.unit_price,
+        })
+      }
+      logger.info(
+        `[PaymentSessions] Applied bundle item price updates to cart ${cartId}: discount=$${totalDiscount}`
+      )
+    } catch (bundleErr) {
+      logger.error(
+        `[PaymentSessions] Failed to update bundle item prices: ${bundleErr instanceof Error ? bundleErr.message : String(bundleErr)}`
+      )
+    }
+  }
+
+  // ── Workflow 1: add shipping if missing ──────────────────────────────────
   const flatShippingOptionId = process.env.FLAT_SHIPPING_OPTION_ID
   const hasShipping = cart.shipping_methods?.length > 0
   if (flatShippingOptionId && !hasShipping) {
@@ -57,7 +83,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         input: { cart_id: cartId, options: [{ id: flatShippingOptionId }] },
       })
     } catch (err) {
-      const logger = req.scope.resolve("logger")
       logger.warn(`[PaymentSessions] Auto-add shipping failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
@@ -74,7 +99,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   // ── Single post-workflow query: get collection with amount ────────────────
-  // Also fetch cart.total (includes promotion discounts) to use as authoritative amount
   const { data: refreshed } = await query.graph({
     entity: "cart",
     filters: { id: cartId },
@@ -100,9 +124,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // Use cart.total (post-promotion) as the authoritative amount.
-  // payment_collection.amount may be stale if a promotion was applied after
-  // the collection was first created.
   const cartTotal: number = cart.total ?? cart.payment_collection?.amount
   const collectionCurrency = cart.payment_collection?.currency_code ?? cart.currency_code ?? "mxn"
 
@@ -111,11 +132,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  const logger = req.scope.resolve("logger")
   logger.info(`[PaymentSessions] cart.total=${cartTotal} discount_total=${cart.discount_total ?? 0} collection.amount=${cart.payment_collection?.amount}`)
 
   // ── Pick provider based on cart currency ──────────────────────────────────
-  // MP for ARS (Argentina), Openpay for everything else (Mexico today)
   const providerId =
     collectionCurrency.toLowerCase() === "ars"
       ? "pp_mercadopago_mercadopago"
@@ -140,8 +159,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       return
     }
   } else {
-    // Session already exists — update its amount to reflect any promotions applied
-    // since the session was first created (e.g. coupon applied after preload)
     try {
       await (paymentModuleService as any).updatePaymentSession({
         id: existingSession.id,
@@ -154,6 +171,5 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  // Return cart data we already have — no extra query needed
   res.json({ cart: { id: cart.id, payment_collection: cart.payment_collection } })
 }

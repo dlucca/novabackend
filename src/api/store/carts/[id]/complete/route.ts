@@ -3,12 +3,14 @@ import { completeCartWorkflow } from "@medusajs/medusa/core-flows"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { OpenpayClient } from "../../../../../modules/openpay-payment/openpay-client"
 import { MercadoPagoClient } from "../../../../../modules/mercadopago-payment/mercadopago-client"
+import { computeBundleItemPriceUpdates } from "../../../../../lib/bundle-pricing"
 
 const CART_FIELDS = [
   "id",
   "email",
   "total",
   "currency_code",
+  "metadata",
   "customer.id",
   "customer.email",
   "customer.first_name",
@@ -16,6 +18,11 @@ const CART_FIELDS = [
   "customer.metadata",
   "shipping_address.first_name",
   "shipping_address.last_name",
+  "items.id",
+  "items.quantity",
+  "items.unit_price",
+  "items.metadata",
+  "items.variant.product.handle",
   "payment_collection.id",
   "payment_collection.amount",
   "payment_collection.currency_code",
@@ -31,6 +38,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const logger = req.scope.resolve("logger")
+  const cartModuleService = req.scope.resolve(Modules.CART)
 
   let cart: any = null
   try {
@@ -51,11 +59,36 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  const paymentAmount = cart.total ?? session.amount ?? cart.payment_collection?.amount
-  if (!paymentAmount) {
+  const rawAmount = cart.total ?? session.amount ?? cart.payment_collection?.amount
+  if (!rawAmount) {
     res.status(422).json({ message: "Cart has no chargeable amount" })
     return
   }
+
+  // ── Apply bundle line item unit price adjustments if not already adjusted ──
+  const { updates: bundleUpdates, totalDiscount: computedBundleDiscount } =
+    computeBundleItemPriceUpdates(cart.items ?? [])
+
+  if (bundleUpdates.length > 0) {
+    try {
+      for (const update of bundleUpdates) {
+        await (cartModuleService as any).updateLineItems(update.id, {
+          unit_price: update.unit_price,
+        })
+      }
+      logger.info(
+        `[CompleteCart] Applied bundle item price updates to cart ${cartId}: discount=$${computedBundleDiscount}`
+      )
+    } catch (updateErr) {
+      logger.error(
+        `[CompleteCart] Failed to update bundle item prices: ${updateErr instanceof Error ? updateErr.message : String(updateErr)}`
+      )
+    }
+  }
+
+  // Idempotent: If items were already adjusted, computedBundleDiscount is 0.
+  // If items were just adjusted now, rawAmount was pre-adjustment so subtract discount.
+  const paymentAmount = Math.max(0, rawAmount - (bundleUpdates.length > 0 ? computedBundleDiscount : 0))
 
   const currencyCode = (
     cart.currency_code ??
@@ -112,8 +145,6 @@ async function completeMercadoPago({
   }
 
   // 1. Get or create MercadoPago customer.
-  // MP rejects empty first/last names (code 108), so we pull from customer
-  // or shipping address and fall back to placeholders if still missing.
   const firstName =
     cart.customer?.first_name ||
     cart.shipping_address?.first_name ||
@@ -121,7 +152,7 @@ async function completeMercadoPago({
   const lastName =
     cart.customer?.last_name ||
     cart.shipping_address?.last_name ||
-    firstName // reuse firstName instead of an empty string
+    firstName
   const mpCustomer = await mp.getOrCreateCustomer({
     email,
     first_name: firstName,
@@ -131,10 +162,6 @@ async function completeMercadoPago({
   logger.info(`[CompleteCart/MP] mp_customer_id=${mpCustomerId}`)
 
   // 2. Charge directly with the one-time token.
-  // MP deprecated generating new tokens from saved cards, and the card-token
-  // one-time token is single-use. Passing payer.id + token in the payment
-  // associates the card with the customer automatically after approval, so
-  // we can look it up later for recurring billing.
   const currencyCode = (
     session.currency_code ??
     cart.payment_collection?.currency_code ??
@@ -197,7 +224,7 @@ async function completeMercadoPago({
     },
   })
 
-  // 7. Complete cart
+  // 6. Complete cart
   logger.info(`[CompleteCart/MP] Running completeCartWorkflow`)
   const { result } = await completeCartWorkflow(req.scope).run({ input: { id: cartId } })
 

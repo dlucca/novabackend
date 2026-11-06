@@ -8,6 +8,7 @@ const ORDER_FIELDS = [
   "display_id",
   "email",
   "total",
+  "summary.*",
   "currency_code",
   "created_at",
   "customer.first_name",
@@ -17,6 +18,8 @@ const ORDER_FIELDS = [
   "items.id",
   "items.title",
   "items.quantity",
+  "items.detail.quantity",
+  "items.unit_price",
   "items.metadata",
   "metadata",
 ]
