@@ -59,9 +59,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { updates: bundleUpdates, totalDiscount } = computeBundleItemPriceUpdates(cart.items)
   if (bundleUpdates.length > 0) {
     try {
+      const itemsById = new Map<string, any>((cart.items ?? []).map((i: any) => [i.id, i]))
       for (const update of bundleUpdates) {
+        const existing = itemsById.get(update.id)
         await (cartModuleService as any).updateLineItems(update.id, {
           unit_price: update.unit_price,
+          // Anchor the original price so repeated calls recompute from the same
+          // base instead of stacking discounts.
+          metadata: {
+            ...(existing?.metadata ?? {}),
+            original_unit_price: update.original_unit_price,
+            bundle_adjusted: true,
+          },
         })
       }
       logger.info(
