@@ -1,6 +1,6 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { sendSlackNotification } from "../lib/slack-client"
-import { mapPaymentFailedAlertToSlackBlocks } from "../lib/slack-mappers"
+import { sendTelegramNotification } from "../lib/telegram-client"
+import { mapPaymentFailedAlertToTelegramMessage } from "../lib/telegram-mappers"
 
 type PaymentFailedData = {
   subscription_id: string
@@ -11,19 +11,19 @@ type PaymentFailedData = {
   amount?: number
 }
 
-export default async function subscriptionPaymentFailedSlackAlert({
+export default async function subscriptionPaymentFailedTelegramAlert({
   event,
   container,
 }: SubscriberArgs<PaymentFailedData>) {
   const logger = container.resolve("logger")
-  const webhookUrl = process.env.SLACK_BACKEND_WEBHOOK_URL
-  if (!webhookUrl) return
+  const chatId = process.env.TELEGRAM_ORDERS_CHAT_ID
+  if (!chatId) return
 
   try {
-    await sendSlackNotification(webhookUrl, mapPaymentFailedAlertToSlackBlocks(event.data))
+    await sendTelegramNotification(chatId, mapPaymentFailedAlertToTelegramMessage(event.data))
   } catch (err) {
     logger.warn(
-      `[subscription-slack-alerts] payment_failed Slack alert failed: ${
+      `[subscription-telegram-alerts] payment_failed Telegram alert failed: ${
         err instanceof Error ? err.message : String(err)
       }`
     )
@@ -32,5 +32,5 @@ export default async function subscriptionPaymentFailedSlackAlert({
 
 export const config: SubscriberConfig = {
   event: "subscription.payment_failed",
-  context: { subscriberId: "subscription-payment-failed-slack" },
+  context: { subscriberId: "subscription-payment-failed-telegram" },
 }

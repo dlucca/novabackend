@@ -1,7 +1,7 @@
 // src/workflows/envia-create-fulfillment/index.ts
 //
 // Medusa workflow that quotes Envia carriers, generates the cheapest available
-// shipping label, registers the fulfillment in Medusa, and sends a Slack notification
+// shipping label, registers the fulfillment in Medusa, and sends a Telegram notification
 // — with automatic compensation: if Medusa fulfillment creation fails, the Envia
 // label is cancelled to avoid an untracked charge.
 //
@@ -11,7 +11,7 @@ import { createWorkflow, WorkflowResponse } from "@medusajs/framework/workflows-
 import { fetchOrderForFulfillmentStep } from "./steps/fetch-order"
 import { generateEnviaLabelStep } from "./steps/generate-label"
 import { createMedusaFulfillmentStep } from "./steps/create-fulfillment"
-import { notifySlackStep } from "./steps/notify-slack"
+import { notifyTelegramStep } from "./steps/notify-telegram"
 
 type EnviaFulfillmentInput = { orderId: string }
 
@@ -26,7 +26,7 @@ export const enviaCreateFulfillmentWorkflow = createWorkflow(
       deliveryEstimate: label.deliveryEstimate,
       quotedCarrierCost: label.quotedCarrierCost,
     })
-    notifySlackStep({
+    notifyTelegramStep({
       order,
       labelUrl: label.shipment.label,
       trackingNumber: label.shipment.trackingNumber,

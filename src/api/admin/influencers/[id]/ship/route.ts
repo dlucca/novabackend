@@ -14,7 +14,7 @@
 //   5. Emit influencer.samples-shipped → email subscriber sends the
 //      warm shipping confirmation; no Order means no spurious order
 //      events fire elsewhere
-//   6. Notify Slack #orders with a sample-specific format
+//   6. Notify Telegram Orders group with a sample-specific format
 //
 // The original design used the Medusa Order/Fulfillment pipeline + a
 // 4-step workflow with compensation. That worked end-to-end for real
@@ -40,8 +40,8 @@ import {
   acquireInfluencerShipLock,
   releaseInfluencerShipLock,
 } from "../../../../../lib/redis"
-import { sendSlackNotification } from "../../../../../lib/slack-client"
-import { mapInfluencerSampleShippedToSlackBlocks } from "../../../../../lib/slack-mappers"
+import { sendTelegramNotification } from "../../../../../lib/telegram-client"
+import { mapInfluencerSampleShippedToTelegramMessage } from "../../../../../lib/telegram-mappers"
 
 type EnviaRateLite = {
   carrier: string
@@ -199,11 +199,11 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       err(`Failed to emit influencer.samples-shipped event: ${eventErr instanceof Error ? eventErr.message : String(eventErr)}`)
     }
 
-    // ── 8. Slack notification ───────────────────────────────────────────────
-    const slackWebhook = process.env.SLACK_ORDERS_WEBHOOK_URL
-    if (slackWebhook) {
+    // ── 8. Telegram notification ────────────────────────────────────────────
+    const chatId = process.env.TELEGRAM_ORDERS_CHAT_ID
+    if (chatId) {
       try {
-        const blocks = mapInfluencerSampleShippedToSlackBlocks({
+        const message = mapInfluencerSampleShippedToTelegramMessage({
           nombre: application.nombre,
           email: application.email,
           instagramHandle: application.instagram_handle ?? null,
@@ -214,10 +214,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           labelUrl: shipment.label,
           trackUrl: shipment.trackUrl,
         })
-        await sendSlackNotification(slackWebhook, blocks)
-      } catch (slackErr) {
+        await sendTelegramNotification(chatId, message)
+      } catch (tgErr) {
         // Non-fatal — log and continue.
-        err(`Slack notification failed: ${slackErr instanceof Error ? slackErr.message : String(slackErr)}`)
+        err(`Telegram notification failed: ${tgErr instanceof Error ? tgErr.message : String(tgErr)}`)
       }
     }
 

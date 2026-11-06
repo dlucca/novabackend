@@ -3,7 +3,7 @@
 // Pure helpers for the influencer-sample ship route. Extracted so the
 // validation + destination-composition logic is unit-testable without
 // booting Medusa's request scope. The route handler stays responsible
-// for I/O (Redis lock, Envia HTTP calls, DB writes, Slack, events).
+// for I/O (Redis lock, Envia HTTP calls, DB writes, Telegram, events).
 
 import { mapAddress } from "../../../../../lib/envia-mappers"
 import type { EnviaAddress } from "../../../../../lib/envia-client"
