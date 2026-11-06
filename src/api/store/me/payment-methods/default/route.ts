@@ -1,6 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { OpenpayClient } from "../../../../../modules/openpay-payment/openpay-client"
+import { MercadoPagoClient } from "../../../../../modules/mercadopago-payment/mercadopago-client"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const clerkEmail = (req as any).clerk_email as string | undefined
@@ -19,6 +20,23 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
+  // Region decides the gateway: ARS → MercadoPago, otherwise Openpay.
+  // region_id can arrive in the body or as a query param.
+  const regionId = (body.region_id ?? req.query.region_id) as string | undefined
+  const logger = req.scope.resolve("logger")
+
+  let currencyCode: string | undefined
+  if (regionId) {
+    const regionService = req.scope.resolve(Modules.REGION)
+    try {
+      const region = await regionService.retrieveRegion(regionId)
+      currencyCode = region.currency_code
+    } catch {
+      res.status(404).json({ message: "Region not found" })
+      return
+    }
+  }
+
   const customerService = req.scope.resolve(Modules.CUSTOMER)
   const customers = await customerService.listCustomers({ email: clerkEmail })
 
@@ -28,6 +46,62 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const customer = customers[0]
+
+  // ── Argentina (ARS) → MercadoPago vault ──────────────────────────────────
+  if (currencyCode === "ars") {
+    const mpCustomerId = customer.metadata?.mp_customer_id as string | undefined
+    if (!mpCustomerId) {
+      res.status(422).json({ message: "Customer has no MercadoPago account. Complete a purchase first." })
+      return
+    }
+
+    const accessToken = process.env.MP_ACCESS_TOKEN ?? ""
+    if (accessToken) {
+      // Validate the card belongs to this customer's MercadoPago vault
+      try {
+        const client = new MercadoPagoClient({ accessToken, sandbox: process.env.NODE_ENV !== "production" })
+        const cards = await client.listCards(mpCustomerId)
+        const cardExists = cards.some((c) => c.id === cardId)
+        if (!cardExists) {
+          res.status(404).json({ message: "Card not found in customer's payment methods" })
+          return
+        }
+      } catch (err) {
+        logger.error(
+          `[store/me/payment-methods/default] Failed to validate card ${cardId} for customer ${customer.id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        )
+        res.status(502).json({ message: "Failed to validate card with MercadoPago" })
+        return
+      }
+    }
+    // When MercadoPago is not configured (dev/test), skip validation and trust the caller
+
+    await customerService.updateCustomers(
+      { id: customer.id },
+      {
+        metadata: {
+          ...(customer.metadata ?? {}),
+          mp_default_card_id: cardId,
+        },
+      }
+    )
+
+    res.json({
+      payment_method: {
+        id: cardId,
+        brand: null,
+        last4: null,
+        exp_month: null,
+        exp_year: null,
+        is_default: true,
+      },
+    })
+    return
+  }
+
+  // ── Mexico (MXN) → Openpay vault (default) ───────────────────────────────
   const openpayCustomerId = customer.metadata?.openpay_customer_id as string | undefined
 
   if (!openpayCustomerId) {
@@ -50,7 +124,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         return
       }
     } catch (err) {
-      const logger = req.scope.resolve("logger")
       logger.error(
         `[store/me/payment-methods/default] Failed to validate card ${cardId} for customer ${customer.id}: ${
           err instanceof Error ? err.message : String(err)
