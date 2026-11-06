@@ -1,7 +1,7 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { sendSlackNotification } from "../lib/slack-client"
-import { mapPaymentCapturedToSlackBlocks } from "../lib/slack-mappers"
+import { sendTelegramNotification } from "../lib/telegram-client"
+import { mapPaymentCapturedToTelegramMessage } from "../lib/telegram-mappers"
 
 const ORDER_FIELDS = [
   "id",
@@ -24,19 +24,13 @@ const ORDER_FIELDS = [
   "metadata",
 ]
 
-export default async function orderPaymentCapturedSlackAlert({
+export default async function orderPaymentCapturedTelegramAlert({
   event,
   container,
 }: SubscriberArgs<{ id: string }>) {
   const logger = container.resolve("logger")
-  // Prefer a dedicated payments webhook so successful charges go to a sales
-  // channel; fall back to the orders webhook (the one actually configured in
-  // prod) and finally the backend webhook for backwards compatibility.
-  const webhookUrl =
-    process.env.SLACK_PAYMENTS_WEBHOOK_URL ??
-    process.env.SLACK_ORDERS_WEBHOOK_URL ??
-    process.env.SLACK_BACKEND_WEBHOOK_URL
-  if (!webhookUrl) return
+  const chatId = process.env.TELEGRAM_ORDERS_CHAT_ID
+  if (!chatId) return
 
   const orderId = event.data.id
   if (!orderId) return
@@ -50,14 +44,14 @@ export default async function orderPaymentCapturedSlackAlert({
     })
     const order = orders?.[0]
     if (!order) {
-      logger.warn(`[order-payment-captured-slack] Order ${orderId} not found`)
+      logger.warn(`[order-payment-captured-telegram] Order ${orderId} not found`)
       return
     }
 
-    await sendSlackNotification(webhookUrl, mapPaymentCapturedToSlackBlocks(order))
+    await sendTelegramNotification(chatId, mapPaymentCapturedToTelegramMessage(order))
   } catch (err) {
     logger.warn(
-      `[order-payment-captured-slack] Slack alert failed for order ${orderId}: ${
+      `[order-payment-captured-telegram] Telegram alert failed for order ${orderId}: ${
         err instanceof Error ? err.message : String(err)
       }`
     )
@@ -66,5 +60,5 @@ export default async function orderPaymentCapturedSlackAlert({
 
 export const config: SubscriberConfig = {
   event: "order.payment_captured",
-  context: { subscriberId: "order-payment-captured-slack" },
+  context: { subscriberId: "order-payment-captured-telegram" },
 }

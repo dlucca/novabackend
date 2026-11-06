@@ -1,11 +1,12 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import processBillingCycleWorkflow from "../workflows/process-billing-cycle"
 import { SUBSCRIPTION_MODULE } from "../modules/subscription"
-import { sendSlackNotification } from "../lib/slack-client"
+import { sendTelegramNotification } from "../lib/telegram-client"
 import {
-  mapBillingRunToSlackBlocks,
-  mapBillingCriticalErrorToSlackBlocks,
-} from "../lib/slack-mappers"
+  mapBillingRunToTelegramMessage,
+  mapBillingCriticalErrorToTelegramMessage,
+  mapBillingPausedToTelegramMessage,
+} from "../lib/telegram-mappers"
 
 const CONCURRENCY = 5
 
@@ -17,30 +18,15 @@ export default async function processDailySubscriptionsJob(
 
   // Kill switch: set BILLING_CRON_PAUSED=true in env to prevent any charges.
   // Use this when rolling out billing changes or if a bug is suspected — the
-  // job logs and notifies Slack but skips all charging.
+  // job logs and notifies Telegram but skips all charging.
   if (process.env.BILLING_CRON_PAUSED === "true") {
     logger.warn(
       "[ProcessDailySubscriptions] BILLING_CRON_PAUSED=true — skipping daily billing run"
     )
-    const webhookUrl = process.env.SLACK_BACKEND_WEBHOOK_URL
-    if (webhookUrl) {
-      await sendSlackNotification(webhookUrl, [
-        {
-          type: "header",
-          text: { type: "plain_text", text: "⏸️ Cron de cobros PAUSADO", emoji: true },
-        },
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text:
-              "El cron diario de cobros recurrentes corrió pero no procesó nada porque " +
-              "`BILLING_CRON_PAUSED=true` está activo. Quita la variable en Railway " +
-              "para reanudar.",
-          },
-        },
-      ]).catch((e) =>
-        logger.warn(`[ProcessDailySubscriptions] Slack pause notice failed: ${e.message}`)
+    const chatId = process.env.TELEGRAM_ORDERS_CHAT_ID
+    if (chatId) {
+      await sendTelegramNotification(chatId, mapBillingPausedToTelegramMessage()).catch((e) =>
+        logger.warn(`[ProcessDailySubscriptions] Telegram pause notice failed: ${e.message}`)
       )
     }
     return
@@ -61,10 +47,10 @@ export default async function processDailySubscriptionsJob(
     const message = err instanceof Error ? err.message : String(err)
     logger.error(`[ProcessDailySubscriptions] Failed to list subscriptions: ${message}`)
 
-    const webhookUrl = process.env.SLACK_BACKEND_WEBHOOK_URL
-    if (webhookUrl) {
-      await sendSlackNotification(webhookUrl, mapBillingCriticalErrorToSlackBlocks(message)).catch(
-        (e) => logger.warn(`[ProcessDailySubscriptions] Slack alert failed: ${e.message}`)
+    const chatId = process.env.TELEGRAM_ORDERS_CHAT_ID
+    if (chatId) {
+      await sendTelegramNotification(chatId, mapBillingCriticalErrorToTelegramMessage(message)).catch(
+        (e) => logger.warn(`[ProcessDailySubscriptions] Telegram alert failed: ${e.message}`)
       )
     }
     return
@@ -110,18 +96,18 @@ export default async function processDailySubscriptionsJob(
     `[ProcessDailySubscriptions] Done. Succeeded: ${succeeded} | Failed: ${failed} | Skipped/Delayed: ${skipped}`
   )
 
-  const webhookUrl = process.env.SLACK_BACKEND_WEBHOOK_URL
-  if (webhookUrl) {
+  const chatId = process.env.TELEGRAM_ORDERS_CHAT_ID
+  if (chatId) {
     const date = now.toLocaleDateString("es-MX", {
       day: "2-digit",
       month: "short",
       year: "numeric",
       timeZone: "America/Mexico_City",
     })
-    await sendSlackNotification(
-      webhookUrl,
-      mapBillingRunToSlackBlocks({ succeeded, failed, skipped, total: dueSubscriptions.length, date })
-    ).catch((e) => logger.warn(`[ProcessDailySubscriptions] Slack summary failed: ${e.message}`))
+    await sendTelegramNotification(
+      chatId,
+      mapBillingRunToTelegramMessage({ succeeded, failed, skipped, total: dueSubscriptions.length, date })
+    ).catch((e) => logger.warn(`[ProcessDailySubscriptions] Telegram summary failed: ${e.message}`))
   }
 }
 

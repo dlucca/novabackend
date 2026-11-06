@@ -41,7 +41,7 @@ export const cancelSubscriptionStep = createStep(
       input.subscription_id
     )
 
-    // Emit event for Slack monitoring and any future subscribers
+    // Emit event for Telegram monitoring and any future subscribers
     const eventBus = container.resolve(Modules.EVENT_BUS)
     await eventBus.emit([{
       name: "subscription.canceled",

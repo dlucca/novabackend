@@ -1,6 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { sendSlackNotification } from "../../../lib/slack-client"
-import { mapRailwayEventToSlackBlocks, type RailwayWebhookPayload } from "../../../lib/slack-mappers"
+import { sendTelegramNotification } from "../../../lib/telegram-client"
+import { mapRailwayEventToTelegramMessage, type RailwayWebhookPayload } from "../../../lib/telegram-mappers"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   // Validate shared secret
@@ -18,25 +18,25 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   setImmediate(async () => {
     try {
-      const webhookUrl = process.env.SLACK_BACKEND_WEBHOOK_URL
-      if (!webhookUrl) {
-        logger.warn("[railway-webhook] SLACK_BACKEND_WEBHOOK_URL not set — skipping notification")
+      const chatId = process.env.TELEGRAM_ORDERS_CHAT_ID
+      if (!chatId) {
+        logger.warn("[railway-webhook] TELEGRAM_ORDERS_CHAT_ID not set — skipping notification")
         return
       }
 
-      const blocks = mapRailwayEventToSlackBlocks(payload)
-      if (!blocks) {
+      const message = mapRailwayEventToTelegramMessage(payload)
+      if (!message) {
         // Intermediate status (BUILDING, DEPLOYING, etc.) — no alert needed
         return
       }
 
-      await sendSlackNotification(webhookUrl, blocks)
+      await sendTelegramNotification(chatId, message)
       logger.info(
-        `[railway-webhook] Slack notification sent for deployment status: ${payload.deployment?.status}`
+        `[railway-webhook] Telegram notification sent for deployment status: ${payload.deployment?.status}`
       )
     } catch (err) {
       logger.error(
-        `[railway-webhook] Failed to send Slack notification: ${
+        `[railway-webhook] Failed to send Telegram notification: ${
           err instanceof Error ? err.message : String(err)
         }`
       )

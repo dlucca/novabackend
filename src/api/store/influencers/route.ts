@@ -1,8 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { INFLUENCER_MODULE } from "../../../modules/influencer"
 import InfluencerModuleService from "../../../modules/influencer/service"
-import { sendSlackNotification } from "../../../lib/slack-client"
-import { mapInfluencerApplicationToSlackBlocks } from "../../../lib/slack-mappers"
+import { sendTelegramNotification } from "../../../lib/telegram-client"
+import { mapInfluencerApplicationToTelegramMessage } from "../../../lib/telegram-mappers"
 import { validateInfluencerPayload } from "../../../lib/influencer-validation"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
@@ -18,7 +18,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const tiktokHandle = (body.tiktok_handle as string)?.trim() || null
 
   // Derive legacy red_principal / handle from whichever handle is present so
-  // existing admin views and Slack mappers keep working without changes.
+  // existing admin views and Telegram mappers keep working without changes.
   const redPrincipal = instagramHandle ? "instagram" : "tiktok"
   const primaryHandle = instagramHandle ?? tiktokHandle ?? ""
 
@@ -53,9 +53,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     } as any,
   ])
 
-  const webhookUrl = process.env.SLACK_INFLUENCER_WEBHOOK_URL
-  if (webhookUrl) {
-    const blocks = mapInfluencerApplicationToSlackBlocks({
+  const chatId = process.env.TELEGRAM_INFLUENCER_CHAT_ID
+  if (chatId) {
+    const message = mapInfluencerApplicationToTelegramMessage({
       nombre: application.nombre,
       email: application.email,
       pais: application.pais,
@@ -67,8 +67,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       nicho: application.nicho as unknown as string[],
       parches: application.parches as unknown as string[],
     })
-    sendSlackNotification(webhookUrl, blocks).catch((err) =>
-      console.error("Slack influencer notification failed:", err)
+    sendTelegramNotification(chatId, message).catch((err) =>
+      console.error("Telegram influencer notification failed:", err)
     )
   }
 
