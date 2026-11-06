@@ -24,6 +24,33 @@ export interface LineItemInput {
 export interface BundlePriceAdjustment {
   id: string
   unit_price: number
+  /**
+   * The authoritative (pre-discount) price this adjustment was computed from.
+   * Persisted to the line item's metadata so repeated calls recompute from the
+   * same anchor instead of stacking discounts on an already-discounted price.
+   */
+  original_unit_price: number
+}
+
+/**
+ * Resolves the authoritative pre-discount price for a line item.
+ *
+ * The client cannot set unit_price (Medusa derives it from the catalog), so a
+ * never-adjusted item's current unit_price IS the catalog price. Once we adjust
+ * it, we stash the original in metadata.original_unit_price and read it back
+ * here. We only trust that stored value when it is >= the current price:
+ * bundle discounts only ever LOWER a price, so a stored original below the
+ * current price can only be a forged/client-supplied value and is ignored.
+ * This keeps the computation idempotent and prevents a crafted metadata payload
+ * from driving the charged price below the real catalog price.
+ */
+function resolveOriginalPrice(currentPrice: number, metadata: any): number {
+  const stored = metadata?.original_unit_price
+  const storedNum = typeof stored === "number" ? stored : parseFloat(String(stored ?? ""))
+  if (Number.isFinite(storedNum) && storedNum >= currentPrice) {
+    return storedNum
+  }
+  return currentPrice
 }
 
 /**
@@ -80,26 +107,36 @@ export function computeBundleDiscount(
 export function computeBundleItemPriceUpdates(
   items: any[]
 ): { updates: BundlePriceAdjustment[]; totalDiscount: number } {
-  // Normalize items
-  const parsedItems = items.map((item) => ({
-    id: item.id as string,
-    handle: (item.variant?.product?.handle ?? item.handle ?? "") as string,
-    quantity: (item.quantity ?? 1) as number,
-    unit_price: typeof item.unit_price === "number" ? item.unit_price : parseFloat(String(item.unit_price ?? 750)),
-    isSubscription: !!(item.metadata?.is_subscription ?? item.variant?.metadata?.is_subscription ?? item.isSubscription),
-  }))
+  // Normalize items. `currentPrice` is the line item's live unit_price (which
+  // may already be discounted from a previous call); `originalPrice` is the
+  // authoritative anchor we compute discounts from, so repeated calls are
+  // idempotent instead of stacking discounts.
+  const parsedItems = items.map((item) => {
+    const currentPrice =
+      typeof item.unit_price === "number" ? item.unit_price : parseFloat(String(item.unit_price ?? 750))
+    return {
+      id: item.id as string,
+      handle: (item.variant?.product?.handle ?? item.handle ?? "") as string,
+      quantity: (item.quantity ?? 1) as number,
+      currentPrice,
+      originalPrice: resolveOriginalPrice(currentPrice, item.metadata),
+      isSubscription: !!(item.metadata?.is_subscription ?? item.variant?.metadata?.is_subscription ?? item.isSubscription),
+    }
+  })
 
   const onceItems = parsedItems.filter((i) => !i.isSubscription && i.id)
 
-  // Expand items into single units for granular discount assignment
+  // Expand items into single units for granular discount assignment. Units are
+  // anchored to originalPrice so the greedy passes always start from the real
+  // catalog price, never from an already-discounted value.
   const units: Array<{ id: string; handle: string; originalPrice: number; discountedPrice: number }> = []
   for (const item of onceItems) {
     for (let q = 0; q < item.quantity; q++) {
       units.push({
         id: item.id,
         handle: item.handle,
-        originalPrice: item.unit_price,
-        discountedPrice: item.unit_price,
+        originalPrice: item.originalPrice,
+        discountedPrice: item.originalPrice,
       })
     }
   }
@@ -164,17 +201,23 @@ export function computeBundleItemPriceUpdates(
     }
   }
 
-  // Group back by line item id to calculate average unit_price
+  // Group back by line item id to calculate average unit_price. We clamp the
+  // result to the anchor price and only emit an update when the target differs
+  // from the line item's CURRENT price — so an already-correct item produces no
+  // write (idempotent), and an item that no longer qualifies for a bundle is
+  // restored toward its original price.
   const updates: BundlePriceAdjustment[] = []
   for (const item of onceItems) {
     const matchingUnits = units.filter((u) => u.id === item.id)
     if (matchingUnits.length > 0) {
-      const avgUnitPrice =
+      const rawAvg =
         matchingUnits.reduce((sum, u) => sum + u.discountedPrice, 0) / matchingUnits.length
-      if (Math.abs(avgUnitPrice - item.unit_price) > 0.001) {
+      const avgUnitPrice = Math.min(Math.max(0, rawAvg), item.originalPrice)
+      if (Math.abs(avgUnitPrice - item.currentPrice) > 0.001) {
         updates.push({
           id: item.id,
           unit_price: avgUnitPrice,
+          original_unit_price: item.originalPrice,
         })
       }
     }

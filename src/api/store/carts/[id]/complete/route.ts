@@ -69,26 +69,48 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { updates: bundleUpdates, totalDiscount: computedBundleDiscount } =
     computeBundleItemPriceUpdates(cart.items ?? [])
 
+  let paymentAmount = Math.max(0, Number(rawAmount))
+
   if (bundleUpdates.length > 0) {
     try {
+      const itemsById = new Map<string, any>((cart.items ?? []).map((i: any) => [i.id, i]))
       for (const update of bundleUpdates) {
+        const existing = itemsById.get(update.id)
         await (cartModuleService as any).updateLineItems(update.id, {
           unit_price: update.unit_price,
+          metadata: {
+            ...(existing?.metadata ?? {}),
+            original_unit_price: update.original_unit_price,
+            bundle_adjusted: true,
+          },
         })
       }
       logger.info(
         `[CompleteCart] Applied bundle item price updates to cart ${cartId}: discount=$${computedBundleDiscount}`
       )
+
+      // Re-query the authoritative cart total after the adjustments instead of
+      // manually subtracting a discount — the charged amount always matches
+      // what Medusa computes from the (now discounted) line items.
+      try {
+        const { data: refreshed } = await query.graph({
+          entity: "cart",
+          filters: { id: cartId },
+          fields: ["total"],
+        })
+        const refreshedTotal = (refreshed?.[0] as any)?.total
+        if (refreshedTotal != null) paymentAmount = Math.max(0, Number(refreshedTotal))
+      } catch (reErr) {
+        logger.warn(
+          `[CompleteCart] Could not re-query cart total after bundle update: ${reErr instanceof Error ? reErr.message : String(reErr)}`
+        )
+      }
     } catch (updateErr) {
       logger.error(
         `[CompleteCart] Failed to update bundle item prices: ${updateErr instanceof Error ? updateErr.message : String(updateErr)}`
       )
     }
   }
-
-  // Idempotent: If items were already adjusted, computedBundleDiscount is 0.
-  // If items were just adjusted now, rawAmount was pre-adjustment so subtract discount.
-  const paymentAmount = Math.max(0, rawAmount - (bundleUpdates.length > 0 ? computedBundleDiscount : 0))
 
   const currencyCode = (
     cart.currency_code ??
