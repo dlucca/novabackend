@@ -166,7 +166,13 @@ async function completeMercadoPago({
     return
   }
 
-  // 1. Get or create MercadoPago customer.
+  // 1. Get or create MercadoPago customer (the card vault for recurring
+  //    billing). This uses MP's Customers & Cards API, which requires a
+  //    PRODUCTION access token — sandbox/test tokens return 403
+  //    (PA_UNAUTHORIZED_RESULT_FROM_POLICIES). Treat it as non-fatal: a
+  //    one-time purchase must still complete even when the card can't be
+  //    vaulted. When this fails, we charge the token directly by payer email;
+  //    recurring billing for this customer will need the card saved later.
   const firstName =
     cart.customer?.first_name ||
     cart.shipping_address?.first_name ||
@@ -175,15 +181,24 @@ async function completeMercadoPago({
     cart.customer?.last_name ||
     cart.shipping_address?.last_name ||
     firstName
-  const mpCustomer = await mp.getOrCreateCustomer({
-    email,
-    first_name: firstName,
-    last_name: lastName,
-  })
-  const mpCustomerId = mpCustomer.id
-  logger.info(`[CompleteCart/MP] mp_customer_id=${mpCustomerId}`)
+  let mpCustomerId: string | undefined
+  try {
+    const mpCustomer = await mp.getOrCreateCustomer({
+      email,
+      first_name: firstName,
+      last_name: lastName,
+    })
+    mpCustomerId = mpCustomer.id
+    logger.info(`[CompleteCart/MP] mp_customer_id=${mpCustomerId}`)
+  } catch (vaultErr) {
+    logger.warn(
+      `[CompleteCart/MP] Customer vault unavailable (${vaultErr instanceof Error ? vaultErr.message : String(vaultErr)}) — ` +
+        `falling back to a direct charge for ${email}. Card will not be saved; recurring billing needs the card vaulted later.`
+    )
+  }
 
-  // 2. Charge directly with the one-time token.
+  // 2. Charge the one-time token. Use the vaulted customer when available,
+  //    otherwise charge directly by payer email.
   const currencyCode = (
     session.currency_code ??
     cart.payment_collection?.currency_code ??
@@ -195,32 +210,35 @@ async function completeMercadoPago({
     amount: paymentAmount,
     currencyCode,
     description: `Novapatch order - ${cartId}`,
-    mpCustomerId,
+    ...(mpCustomerId ? { mpCustomerId } : { payerEmail: email }),
     externalReference: cartId,
   })
   logger.info(`[CompleteCart/MP] payment_id=${payment.id} status=${payment.status}`)
 
   // 3. Discover the saved card ID (MP attaches the card on approved payments).
+  //    Only possible when the card was vaulted under a customer.
   let mpCardId: string | undefined
-  try {
-    const cards = await mp.listCards(mpCustomerId)
-    mpCardId = cards[0]?.id
-    if (mpCardId) {
-      logger.info(`[CompleteCart/MP] associated card_id=${mpCardId}`)
-    } else {
-      logger.warn(`[CompleteCart/MP] No card saved for customer ${mpCustomerId} — recurring billing will need fallback`)
+  if (mpCustomerId) {
+    try {
+      const cards = await mp.listCards(mpCustomerId)
+      mpCardId = cards[0]?.id
+      if (mpCardId) {
+        logger.info(`[CompleteCart/MP] associated card_id=${mpCardId}`)
+      } else {
+        logger.warn(`[CompleteCart/MP] No card saved for customer ${mpCustomerId} — recurring billing will need fallback`)
+      }
+    } catch (listErr) {
+      logger.error(`[CompleteCart/MP] Failed to list cards: ${listErr instanceof Error ? listErr.message : String(listErr)}`)
     }
-  } catch (listErr) {
-    logger.error(`[CompleteCart/MP] Failed to list cards: ${listErr instanceof Error ? listErr.message : String(listErr)}`)
   }
 
   // 4. Persist mp_customer_id (and card id if available) to customer metadata
-  if (cart.customer?.id) {
+  if (cart.customer?.id && (mpCustomerId || mpCardId)) {
     try {
       const customerModuleService = req.scope.resolve(Modules.CUSTOMER)
       const metadataUpdate: Record<string, unknown> = {
         ...(cart.customer.metadata ?? {}),
-        mp_customer_id: mpCustomerId,
+        ...(mpCustomerId ? { mp_customer_id: mpCustomerId } : {}),
       }
       if (mpCardId) metadataUpdate.mp_default_card_id = mpCardId
       await (customerModuleService as any).updateCustomers(cart.customer.id, {
@@ -241,7 +259,7 @@ async function completeMercadoPago({
     data: {
       ...(session.data ?? {}),
       mp_payment_id: String(payment.id),
-      mp_customer_id: mpCustomerId,
+      ...(mpCustomerId ? { mp_customer_id: mpCustomerId } : {}),
       ...(mpCardId ? { mp_card_id: mpCardId } : {}),
     },
   })

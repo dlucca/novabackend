@@ -114,7 +114,11 @@ export class MercadoPagoClient {
     amount: number
     currencyCode: string
     description: string
-    mpCustomerId: string
+    // Vaulted-customer charge (production path). When the Customers API is
+    // unavailable (e.g. sandbox returns 403), omit this and pass payerEmail
+    // instead to charge the one-time token directly.
+    mpCustomerId?: string
+    payerEmail?: string
     externalReference?: string
   }): Promise<MPPayment> {
     // MP infers currency from the account's country; passing currency_id
@@ -123,6 +127,12 @@ export class MercadoPagoClient {
     const idempotencyKey = params.externalReference
       ? `${params.externalReference}-${Date.now()}`
       : `charge-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    // Prefer the vaulted customer; fall back to the payer email for the
+    // direct one-time charge. MP rejects @testuser.com emails here
+    // ("Invalid users involved"), so callers must pass a real address.
+    const payer = params.mpCustomerId
+      ? { type: "customer", id: params.mpCustomerId }
+      : { email: params.payerEmail }
     const payment = await this.request<MPPayment>(
       "POST",
       "/v1/payments",
@@ -131,7 +141,7 @@ export class MercadoPagoClient {
         transaction_amount: params.amount,
         description: params.description,
         installments: 1,
-        payer: { type: "customer", id: params.mpCustomerId },
+        payer,
         ...(params.externalReference ? { external_reference: params.externalReference } : {}),
       },
       { "X-Idempotency-Key": idempotencyKey }
